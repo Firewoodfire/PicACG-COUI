@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 与图标渐变主色一致，用于启动时状态栏/窗口底色 -->
+    <color name="picacg_pink">#FF7BA9</color>
+    <color name="picacg_pink_deep">#E24A8A</color>
+</resources>

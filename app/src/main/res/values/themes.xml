@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        窗口背景必须是透明的，否则 Compose 画出来的磨砂玻璃背后是一层不透明黑，
+        模糊就完全看不出来了。windowIsTranslucent 只在 API 31+ 有意义，
+        低版本系统会自动忽略，Compose 那侧也会退回纯色卡片。
+    -->
+    <style name="Theme.PicACG" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowShowWallpaper">false</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>
