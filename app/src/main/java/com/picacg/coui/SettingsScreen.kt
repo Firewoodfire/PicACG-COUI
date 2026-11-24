@@ -62,6 +62,7 @@ import kotlinx.coroutines.launch
  * 分组标题在卡片外，条目行高 48dp、左右 16dp，和 ColorOS 设置页一致。
  */
 @Composable
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 fun SettingsScreen(onBack: () -> Unit, onOpenAbout: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     var draft by remember { mutableStateOf(ApiConfigStore.config) }
@@ -386,7 +387,8 @@ fun SettingsScreen(onBack: () -> Unit, onOpenAbout: () -> Unit = {}) {
             // ---------------- 屏蔽设定
             Group(
                 title = "屏蔽",
-                footer = "每行一条。author: / tag: / title: / desc: 只看某个维度，re: 开头是正则，# 开头按 id 精确匹配。// 开头是注释。",
+                footer = "每行一条。author: / title: / desc: 只看某个维度，tag: 按整枚标签相等匹配（推荐用下面的标签胶囊），" +
+                    "re: 开头是正则，# 开头按 id 精确匹配。// 开头是注释。",
             ) {
                 CouiSwitchRow(
                     title = "启用屏蔽规则",
@@ -399,6 +401,37 @@ fun SettingsScreen(onBack: () -> Unit, onOpenAbout: () -> Unit = {}) {
                     onCheckedChange = { v -> edit { it.copy(block = it.block.copy(enabled = v)) } },
                 )
                 Divider()
+                // 点标签屏蔽后，被点过的标签都攒在这里，点一下就能取消
+                val blockedTags = draft.block.tags
+                if (blockedTags.isNotEmpty()) {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
+                        Text(
+                            "已屏蔽的标签",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = CouiTheme.colorScheme.onSurface,
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            "点一下移除，${blockedTags.size} 枚",
+                            fontSize = 11.sp,
+                            color = CouiTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        androidx.compose.foundation.layout.FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            blockedTags.forEach { tag ->
+                                CouiTagPill(tag) {
+                                    edit { it.copy(block = it.block.withoutTag(tag)) }
+                                }
+                            }
+                        }
+                    }
+                    Divider()
+                }
                 Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
                     CouiField(
                         label = "规则（每行一条）",

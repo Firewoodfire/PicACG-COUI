@@ -685,7 +685,8 @@ class HttpRepository(private val cfg: ApiConfig) : ContentRepository {
                 is JSONObject -> listOfNotNull(str(v, "name", "title"))
                 else -> emptyList()
             }
-            val clean = list.filter { it.isNotBlank() && it.length <= 12 }.distinct().take(3)
+            // 多留几枚：列表只显示前三枚，详情页和以后要扩的展示位直接复用
+            val clean = list.filter { it.isNotBlank() && it.length <= 12 }.distinct().take(6)
             if (clean.isNotEmpty()) return clean
         }
         return emptyList()

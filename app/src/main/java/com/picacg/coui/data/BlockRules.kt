@@ -8,11 +8,15 @@ package com.picacg.coui.data
  * | 写法 | 含义 | 判定范围 |
  * |---|---|---|
  * | `女装`      | 普通关键词（模糊包含，不区分大小写） | 标题、简介、作者、标签、分类 |
- * | `作者:某画师` | 指定维度，`:` 后是关键词 | author / tag / title / text 四选一 |
+ * | `作者:某画师` | 指定维度，`:` 后是关键词 | author / title / text 四选一，模糊包含 |
+ * | `标签:百合`  | 指定某个标签 | 只看标签，整枚标签相等才算命中 |
  * | `(?i)^\d{5}$` | 以 `re:` 开头的正则 | 同上，命中任意一处即屏蔽 |
  * | `#123456`   | 以 `#` 开头的条目 id | 只看 id，精确匹配 |
  *
- * 模糊匹配按「子串」判断，不做分词——中文分词在这里反而容易漏。
+ * 普通关键词按「子串」判断，不做分词——中文分词在这里反而容易漏。
+ * 唯独 `tag:` 走整枚标签相等：界面上点标签屏蔽时，用户点的是「百合」，
+ * 不该把「百合向」也一起带走。
+ *
  * 规则为空时 [enabled] 为 false，所有过滤直接跳过，不影响性能。
  */
 data class BlockRules(
@@ -33,6 +37,37 @@ data class BlockRules(
 
     /** 规则条数，设置页用来显示「已启用 N 条」。 */
     val count: Int get() = lines.size
+
+    /** 当前屏蔽掉的标签，供设置页以胶囊形式展示与逐个移除。 */
+    val tags: List<String>
+        get() = lines.mapNotNull { tagValueOf(it) }.distinctBy { it.lowercase() }
+
+    /** 这个标签是不是已经在屏蔽名单里。 */
+    fun hasTag(tag: String): Boolean = tags.any { it.equals(tag.trim(), ignoreCase = true) }
+
+    /**
+     * 追加一条标签屏蔽规则。
+     *
+     * 已经存在同名标签时原样返回，不产生重复行；
+     * 顺手把总开关打开——用户既然点了「屏蔽此标签」，就不该再让他去设置里找开关。
+     */
+    fun withTag(tag: String): BlockRules {
+        val t = tag.trim()
+        if (t.isEmpty() || hasTag(t)) return this
+        val nextRaw = if (raw.isBlank()) "tag:$t" else raw.trimEnd() + "\n" + "tag:$t"
+        return copy(enabled = true, raw = nextRaw)
+    }
+
+    /** 移除某个标签的屏蔽规则，其余行原样保留。 */
+    fun withoutTag(tag: String): BlockRules {
+        val t = tag.trim()
+        if (t.isEmpty()) return this
+        val kept = raw.lineSequence()
+            .filterNot { tagValueOf(it)?.equals(t, ignoreCase = true) == true }
+            .joinToString("\n")
+            .trimEnd()
+        return copy(raw = kept)
+    }
 
     /**
      * 判断一个条目是否该被屏蔽。
@@ -81,7 +116,16 @@ data class BlockRules(
                 else -> emptyList() // 认不出的维度名，当普通关键词整行匹配
             }
             if (dims.isNotEmpty()) {
-                return dims.any { d -> fields[d]?.contains(want, ignoreCase = true) == true }
+                return dims.any { d ->
+                    if (d == "tags") {
+                        // 标签维度按整枚相等，避免「百合」误伤「百合向」
+                        fields["tags"]
+                            ?.split(" / ")
+                            ?.any { it.trim().equals(want, ignoreCase = true) } == true
+                    } else {
+                        fields[d]?.contains(want, ignoreCase = true) == true
+                    }
+                }
             }
         }
 
@@ -96,11 +140,27 @@ data class BlockRules(
         const val SAMPLE = "# 每行一条规则，空行会被忽略\n" +
             "# 普通关键词，命中标题 / 简介 / 作者 / 标签任意一处即屏蔽\n" +
             "女装\n" +
-            "# 只看某个维度：author / tag / title / desc\n" +
+            "# 只看某个维度：author / title / desc\n" +
             "author:某某画师\n" +
+            "# 标签按整枚相等，适合从列表里点标签屏蔽\n" +
+            "tag:百合\n" +
             "# 正则，以 re: 开头\n" +
             "re:(?i)test|测试\n" +
             "# 按条目 id 精确屏蔽\n" +
             "#123456"
     }
+}
+
+/**
+ * 从一行规则里取出「标签屏蔽」的值，认 `tag:` 与 `标签:` 两种写法。
+ * 不是标签规则、或者冒号后面是空的，都返回 null。
+ */
+private fun tagValueOf(line: String): String? {
+    val l = line.trim()
+    if (l.isEmpty() || l.startsWith("//") || l.startsWith("#")) return null
+    val colon = l.indexOfFirst { it == ':' || it == '：' }
+    if (colon !in 1..12) return null
+    val key = l.substring(0, colon).trim().lowercase()
+    if (key != "tag" && key != "tags" && key != "标签") return null
+    return l.substring(colon + 1).trim().ifEmpty { null }
 }

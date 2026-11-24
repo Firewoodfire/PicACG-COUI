@@ -131,6 +131,28 @@ object AppContainer {
             ),
         )
     }
+
+    /**
+     * 从列表里点「屏蔽此标签」时调用：追加一条 `tag:` 规则并立即落盘。
+     *
+     * 只保存、不 [ApiConfigStore.applyNow]，当前页由界面自己把命中的卡片摘掉，
+     * 这样点一下不会让整页重新请求、闪一次 loading；之后翻页/重进由接口层统一过滤。
+     *
+     * @return true 表示这次真的新增了规则（标签已存在时返回 false）
+     */
+    fun blockTag(tag: String): Boolean {
+        val cfg = ApiConfigStore.config
+        val next = cfg.block.withTag(tag)
+        if (next == cfg.block) return false
+        ApiConfigStore.save(cfg.copy(block = next))
+        return true
+    }
+
+    /** 撤销某个标签的屏蔽。 */
+    fun unblockTag(tag: String) {
+        val cfg = ApiConfigStore.config
+        ApiConfigStore.save(cfg.copy(block = cfg.block.withoutTag(tag)))
+    }
 }
 
 /** 卡片上所有能被关键词命中的文本，键名与 [BlockRules] 的维度名一致。 */

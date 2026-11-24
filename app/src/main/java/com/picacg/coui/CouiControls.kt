@@ -9,11 +9,14 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -233,6 +236,36 @@ fun CouiHint(text: String, color: Color = CouiTheme.colorScheme.onSurfaceVariant
 fun CouiGroupBody(content: @Composable () -> Unit) {
     Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
         content()
+    }
+}
+
+/**
+ * 一枚可移除的标签胶囊，用在设置页的「已屏蔽标签」。
+ * 整枚可点，点一下就删掉对应规则；末尾的 × 只是视觉提示。
+ */
+@Composable
+fun CouiTagPill(text: String, onRemove: () -> Unit) {
+    val colors = CouiPageDefaults.themeColors()
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(9.dp))
+            .background(colors.accent.copy(alpha = 0.12f))
+            .clickable(onClick = onRemove)
+            .padding(start = 10.dp, end = 9.dp, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text,
+            fontSize = 12.sp,
+            maxLines = 1,
+            color = colors.accent,
+        )
+        Spacer(Modifier.width(5.dp))
+        Text(
+            "×",
+            fontSize = 13.sp,
+            color = colors.accent.copy(alpha = 0.65f),
+        )
     }
 }
 

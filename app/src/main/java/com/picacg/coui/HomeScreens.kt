@@ -64,6 +64,10 @@ import com.picacg.coui.data.AppContainer
 import com.picacg.coui.data.CardItem
 import com.itos.coui.chip.ChipTabRow
 import com.itos.coui.chip.CouiChipTabItem
+import com.itos.coui.dialog.CouiDialogAction
+import com.itos.coui.dialog.CouiDialogActionStyle
+import com.itos.coui.dialog.CouiDialogDefaults
+import com.itos.coui.dialog.Dialog
 import com.itos.coui.scroll.rememberCouiOverscrollEffect
 import com.itos.coui.layout.Group
 import com.itos.coui.layout.Item
@@ -98,6 +102,9 @@ fun HomeScreen(onOpen: (String) -> Unit) {
     var searching by remember { mutableStateOf(false) }
     var results by remember { mutableStateOf<List<CardItem>>(emptyList()) }
     var searchError by remember { mutableStateOf<String?>(null) }
+    // 搜索结果里点标签屏蔽后，提示条 + 撤销；searchReload 用来在撤销后重搜一次
+    var searchBlockedTag by remember { mutableStateOf<String?>(null) }
+    var searchReload by remember { mutableIntStateOf(0) }
 
     // 首屏。三个触发来源：设置页保存配置、手动重试、切换分类——
     // 切换分类要重置到第 1 页，所以放在同一个 effect 里
@@ -120,8 +127,13 @@ fun HomeScreen(onOpen: (String) -> Unit) {
         loading = false
     }
 
+    // 换关键词就收起上一轮的「已屏蔽」提示，避免和当前结果对不上
+    LaunchedEffect(submitted) {
+        searchBlockedTag = null
+    }
+
     // 提交搜索
-    LaunchedEffect(submitted, ApiConfigStore.version) {
+    LaunchedEffect(submitted, ApiConfigStore.version, searchReload) {
         val q = submitted.trim()
         if (q.isEmpty()) {
             results = emptyList()
@@ -186,6 +198,20 @@ fun HomeScreen(onOpen: (String) -> Unit) {
                 loading = searching,
                 error = searchError,
                 onOpen = onOpen,
+                blockedTag = searchBlockedTag,
+                onBlockTag = { tag ->
+                    AppContainer.blockTag(tag)
+                    // 先把当前结果里命中的摘掉，撤销时再靠重搜恢复
+                    results = results.filterNot { c ->
+                        c.tags.any { it.equals(tag, ignoreCase = true) }
+                    }
+                    searchBlockedTag = tag
+                },
+                onUndoBlock = {
+                    searchBlockedTag?.let { AppContainer.unblockTag(it) }
+                    searchBlockedTag = null
+                    searchReload++
+                },
             )
 
             loading -> LoadingBlock("正在加载主页…")
@@ -322,9 +348,13 @@ private fun SearchResults(
     loading: Boolean,
     error: String?,
     onOpen: (String) -> Unit,
+    blockedTag: String? = null,
+    onBlockTag: ((String) -> Unit)? = null,
+    onUndoBlock: () -> Unit = {},
 ) {
     val scheme = CouiTheme.colorScheme
     val overscroll = rememberCouiOverscrollEffect()
+    var pendingTag by remember { mutableStateOf<String?>(null) }
     Column(Modifier.fillMaxSize()) {
         Row(
             Modifier
@@ -362,16 +392,35 @@ private fun SearchResults(
                 verticalArrangement = Arrangement.spacedBy(0.dp),
                 overscrollEffect = overscroll,
             ) {
+                blockedTag?.let { tag ->
+                    item { BlockedTagTip(tag = tag, onUndo = onUndoBlock) }
+                }
                 items(items, key = { it.id }) { item ->
                     ItemRow(
                         item = item,
                         onClick = { onOpen(item.id) },
                         coverWidth = 56.dp,
                         coverHeight = 76.dp,
+                        onBlockTag = if (onBlockTag != null) {
+                            { tag -> pendingTag = tag }
+                        } else {
+                            null
+                        },
                     )
                 }
             }
         }
+    }
+
+    pendingTag?.let { tag ->
+        BlockTagDialog(
+            tag = tag,
+            onDismiss = { pendingTag = null },
+            onConfirm = {
+                onBlockTag?.invoke(tag)
+                pendingTag = null
+            },
+        )
     }
 }
 
@@ -587,15 +636,98 @@ fun Badge(text: String) {
     }
 }
 
+/**
+ * 标签胶囊。
+ *
+ * 传了 [onClick] 就能点：列表里点一下会弹「屏蔽此标签」确认框，
+ * 这是最直观的屏蔽入口——用户看见讨厌的标签，不用去设置里手敲 `tag:`。
+ */
 @Composable
-fun TagChip(text: String) {
+fun TagChip(
+    text: String,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+) {
     Box(
-        Modifier
+        modifier
             .clip(RoundedCornerShape(6.dp))
             .background(CouiTheme.colorScheme.accent.copy(alpha = 0.10f))
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .heightIn(min = 22.dp)
             .padding(horizontal = 7.dp, vertical = 3.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        Text(text, fontSize = 11.sp, maxLines = 1, color = CouiTheme.colorScheme.accent)
+        Text(
+            text,
+            fontSize = 11.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            color = CouiTheme.colorScheme.accent,
+        )
+    }
+}
+
+/**
+ * 「屏蔽此标签」确认框。
+ * 文案写清影响范围，避免用户以为只屏蔽当前这一部。
+ */
+@Composable
+fun BlockTagDialog(
+    tag: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        title = "屏蔽标签「$tag」？",
+        message = "标题或标签里带「$tag」的内容都会从列表、搜索和排行里隐藏。" +
+            "想取消时，到 设置 → 屏蔽 里点掉这枚标签即可。",
+        confirmAction = CouiDialogAction(
+            text = "屏蔽",
+            onClick = onConfirm,
+            style = CouiDialogActionStyle.Primary,
+            colors = CouiDialogDefaults.primaryActionColors(CouiTheme.colorScheme.accent),
+        ),
+        dismissAction = CouiDialogAction(text = "取消", onClick = onDismiss),
+        placement = com.itos.coui.dialog.CouiDialogPlacement.Center,
+    )
+}
+
+/**
+ * 屏蔽成功后的一次性提示条，带撤销。
+ *
+ * 放在列表顶部而不是做成自动消失的 Snackbar：不会挡住最后一行，
+ * 也不会因为用户手快没看清就再也找不回撤销入口。
+ */
+@Composable
+fun BlockedTagTip(tag: String, onUndo: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 2.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(CouiTheme.colorScheme.accent.copy(alpha = 0.10f))
+            .padding(start = 14.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            "已屏蔽标签「$tag」",
+            fontSize = 12.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            color = CouiTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            "撤销",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = CouiTheme.colorScheme.accent,
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .clickable(onClick = onUndo)
+                .padding(horizontal = 12.dp, vertical = 5.dp),
+        )
     }
 }
 
@@ -610,11 +742,16 @@ fun CategoryScreen(onOpen: (String) -> Unit) {
     var reload by remember { mutableIntStateOf(0) }
     var blocked by remember { mutableIntStateOf(0) }
 
+    // 点标签屏蔽：pendingTag 是待确认的标签，blockedTag 是刚屏蔽完、可以撤销的那一枚
+    var pendingTag by remember { mutableStateOf<String?>(null) }
+    var blockedTag by remember { mutableStateOf<String?>(null) }
+
     // selected 也是 key：以前点左边的分类只改了高亮，右边的列表根本没变，
     // 现在切分类会真的按分类重新拉一页
     LaunchedEffect(ApiConfigStore.version, reload, selected) {
         loading = true
         error = null
+        blockedTag = null
         val repo = AppContainer.repository()
         if (cats.isEmpty()) {
             cats = runCatching { repo.categories() }.getOrDefault(emptyList()).filter { it != "全部" }
@@ -708,17 +845,49 @@ fun CategoryScreen(onOpen: (String) -> Unit) {
                 if (items.isEmpty()) {
                     item { EmptyBlock("这个分类还没有内容", "换一个分类看看，或在设置里调整接口路径。") }
                 }
+                blockedTag?.let { tag ->
+                    item { BlockedTagTip(tag = tag, onUndo = {
+                        AppContainer.unblockTag(tag)
+                        blockedTag = null
+                        reload++
+                    }) }
+                }
                 items(items, key = { it.id }) { item ->
-                    ItemRow(item = item, onClick = { onOpen(item.id) }, coverWidth = 56.dp, coverHeight = 76.dp)
+                    ItemRow(
+                        item = item,
+                        onClick = { onOpen(item.id) },
+                        coverWidth = 56.dp,
+                        coverHeight = 76.dp,
+                        onBlockTag = { pendingTag = it },
+                    )
                 }
             }
         }
+    }
+
+    pendingTag?.let { tag ->
+        BlockTagDialog(
+            tag = tag,
+            onDismiss = { pendingTag = null },
+            onConfirm = {
+                AppContainer.blockTag(tag)
+                // 当前页本地先摘掉，不重新请求，点一下不会闪 loading
+                val removed = items.count { it.tags.any { t -> t.equals(tag, ignoreCase = true) } }
+                items = items.filterNot { it.tags.any { t -> t.equals(tag, ignoreCase = true) } }
+                blocked += removed
+                pendingTag = null
+                blockedTag = tag
+            },
+        )
     }
 }
 
 /**
  * 横向列表项：封面 + 标题 + 副标题 + 标签。
  * 文字列用 weight(1f) 撑满剩余宽度，长标题会省略而不是撑破卡片。
+ *
+ * 传了 [onBlockTag] 后，标题下面的标签变成可点：点一下弹确认框，
+ * 确认后把这个标签写进屏蔽规则，列表里带该标签的条目会立刻消失。
  */
 @Composable
 fun ItemRow(
@@ -727,6 +896,7 @@ fun ItemRow(
     coverWidth: androidx.compose.ui.unit.Dp = 64.dp,
     coverHeight: androidx.compose.ui.unit.Dp = 86.dp,
     leading: (@Composable () -> Unit)? = null,
+    onBlockTag: ((String) -> Unit)? = null,
 ) {
     Group {
         Item(onClick = onClick) {
@@ -759,8 +929,18 @@ fun ItemRow(
                     }
                     if (item.tags.isNotEmpty()) {
                         Spacer(Modifier.height(8.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            item.tags.take(2).forEach { TagChip(it) }
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            // 一行最多三枚，长标签各自最多占三分之一宽，超出省略
+                            item.tags.take(3).forEach { tag ->
+                                TagChip(
+                                    text = tag,
+                                    modifier = Modifier.weight(1f, fill = false),
+                                    onClick = onBlockTag?.let { block -> { block(tag) } },
+                                )
+                            }
                         }
                     }
                 }
@@ -782,6 +962,8 @@ fun RankingScreen(onOpen: (String) -> Unit) {
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var reload by remember { mutableIntStateOf(0) }
+    var pendingTag by remember { mutableStateOf<String?>(null) }
+    var blockedTag by remember { mutableStateOf<String?>(null) }
 
     val overscroll = rememberCouiOverscrollEffect()
 
@@ -838,11 +1020,18 @@ fun RankingScreen(onOpen: (String) -> Unit) {
             items.isEmpty() -> EmptyBlock("榜单是空的", "换个时间范围，或检查排行接口路径。")
             else -> LazyColumn(
                 Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 108.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                contentPadding = PaddingValues(bottom = 108.dp),
+                verticalArrangement = Arrangement.spacedBy(0.dp),
                 overscrollEffect = overscroll,
             ) {
-                items(items) { item ->
+                blockedTag?.let { tag ->
+                    item { BlockedTagTip(tag = tag, onUndo = {
+                        AppContainer.unblockTag(tag)
+                        blockedTag = null
+                        reload++
+                    }) }
+                }
+                items(items, key = { it.id }) { item ->
                     val rank = item.badge.toIntOrNull() ?: 0
                     ItemRow(
                         item = item,
@@ -860,10 +1049,24 @@ fun RankingScreen(onOpen: (String) -> Unit) {
                                 )
                             }
                         },
+                        onBlockTag = { pendingTag = it },
                     )
                 }
             }
         }
+    }
+
+    pendingTag?.let { tag ->
+        BlockTagDialog(
+            tag = tag,
+            onDismiss = { pendingTag = null },
+            onConfirm = {
+                AppContainer.blockTag(tag)
+                items = items.filterNot { it.tags.any { t -> t.equals(tag, ignoreCase = true) } }
+                pendingTag = null
+                blockedTag = tag
+            },
+        )
     }
 }
 

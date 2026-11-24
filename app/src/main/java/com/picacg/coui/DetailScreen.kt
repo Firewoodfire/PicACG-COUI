@@ -53,6 +53,8 @@ fun DetailScreen(id: String, onBack: () -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     var reload by remember { mutableIntStateOf(0) }
     var showChapterDialog by remember { mutableStateOf<String?>(null) }
+    // 点标签屏蔽：确认后写规则、让列表页刷新，再退回上一页
+    var pendingTag by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(id, ApiConfigStore.version, reload) {
         loading = true
@@ -118,7 +120,10 @@ fun DetailScreen(id: String, onBack: () -> Unit) {
                                         if (d.tags.isNotEmpty()) {
                                             Spacer(Modifier.height(10.dp))
                                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                                d.tags.take(3).forEach { TagChip(it) }
+                                                // 点标签直接问要不要屏蔽，省得记住标签名再回设置里敲
+                                                d.tags.take(3).forEach { tag ->
+                                                    TagChip(text = tag, onClick = { pendingTag = tag })
+                                                }
                                             }
                                         }
                                         Spacer(Modifier.height(14.dp))
@@ -186,6 +191,20 @@ fun DetailScreen(id: String, onBack: () -> Unit) {
                 }
             }
         }
+    }
+
+    pendingTag?.let { tag ->
+        BlockTagDialog(
+            tag = tag,
+            onDismiss = { pendingTag = null },
+            onConfirm = {
+                AppContainer.blockTag(tag)
+                pendingTag = null
+                // 让列表页按新规则重拉一次，返回后不会再看到这一部
+                ApiConfigStore.applyNow()
+                onBack()
+            },
+        )
     }
 
     showChapterDialog?.let { title ->

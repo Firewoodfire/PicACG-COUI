@@ -11,8 +11,8 @@ android {
         applicationId = "com.picacg.coui"
         minSdk = 31
         targetSdk = 37
-        versionCode = 16
-        versionName = "1.4.2"
+        versionCode = 17
+        versionName = "1.5.0"
         // GitHub Releases 更新检查地址。仓库开通后直接读取该仓库的最新公开 Release。
         buildConfigField("String", "GITHUB_REPOSITORY", "\"Firewoodfire/PicACG-COUI\"")
     }
