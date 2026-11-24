@@ -970,6 +970,7 @@ fun RankingScreen(onOpen: (String) -> Unit) {
     LaunchedEffect(kind, ApiConfigStore.version, reload) {
         loading = true
         error = null
+        blockedTag = null
         // 排行接口自己会过滤，这里再兜一次底，保证 FakeRepository 也遵守规则
         val r = runCatching { AppContainer.repository().ranking(kind) }
         error = r.exceptionOrNull()?.message

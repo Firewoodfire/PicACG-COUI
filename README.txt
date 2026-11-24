@@ -6,7 +6,7 @@ PicACG COUI — ColorOS 17 风格应用骨架（支持 App 内配置接口）
 包名：com.picacg.coui
 系统要求：Android 12（API 31）及以上
 APK 大小：27,954,607 字节（26.7 MB）
-SHA256：9bb71cc885aaf39f52b59063313ab774728b0f20f2fc84baebdf68d3e5ea64cf
+SHA256：b63a846126d1a846fa0e17d0a4328602505f635b4e68be052164b8761355e8e3
 源码仓库：https://github.com/Firewoodfire/PicACG-COUI
 发布页面：https://github.com/Firewoodfire/PicACG-COUI/releases
 
@@ -261,6 +261,6 @@ PicACG-COUI-Source.zip，解压后用 Android Studio 打开 coui/ 目录。
 2. Release：https://github.com/Firewoodfire/PicACG-COUI/releases/tag/v1.5.0
    资产 PicACG-COUI-v1.5.0.apk，27,954,607 字节。
 3. 资产 SHA256：
-   9bb71cc885aaf39f52b59063313ab774728b0f20f2fc84baebdf68d3e5ea64cf，与本地 APK 一致。
+   b63a846126d1a846fa0e17d0a4328602505f635b4e68be052164b8761355e8e3，与本地 APK 一致。
 4. 应用内「设置 → 关于 → 软件版本」读取该仓库最新 Release 的标签与说明。
 5. 发布约定：Release 说明只写简介 + 3~4 条本版要点，详细记录放 CHANGELOG.md。
