@@ -379,23 +379,16 @@ PicACG-COUI-Source.zip，解压后用 Android Studio 打开 coui/ 目录。
   AGP 9.2.0 / Gradle 9.4.1 / compileSdk 37 / JDK 20
 
 
-十一、GitHub 上传状态（2026-11-23）
-----------------------------------
-1. 仓库 https://github.com/Firewoodfire/PicACG-COUI 已创建（公开、Apache-2.0、空仓库）。
-2. 当前连接的 GitHub 账号 Firewoodfire 只有读取权限，无法写入仓库或创建 Release；
-   重新走设备授权时，github.com/login/device/code 端点在本网络下连接超时。
-3. 本地已准备好 v1.4.0 提交和完整源码包，只是缺少写入凭据。应用内更新检查已指向该仓库，
-   Release 创建后就能直接读取最新标签与说明。
-4. 如果你愿意用 Personal Access Token 完成最后一步，按下面做即可（约 2 分钟）：
-   a) GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)
-   b) Generate new token，只勾选 repo，生成后复制
-   c) 在本地执行：
-        git clone https://github.com/Firewoodfire/PicACG-COUI.git
-        cd PicACG-COUI
-        unzip /path/to/PicACG-COUI-Source.zip -d .
-        git add . && git commit -m "v1.4.0: 补齐关于页、储存空间与 GitHub 更新检查"
-        git push origin main
-      推送时会提示输入用户名和密码，用户名填 GitHub 用户名，密码填刚生成的 token。
-   d) 在 GitHub 仓库 → Releases → Draft a new release，标签填 v1.4.0，
-      上传 PicACG-COUI.apk 后发布即可。
-5. 不需要重新编译：交付的 APK 已经内置仓库地址和更新检查逻辑。
+十一、GitHub 上传状态（已完成，2026-11-25）
+------------------------------------------
+1. 源码仓库：https://github.com/Firewoodfire/PicACG-COUI
+   已推送 main 分支，提交为「v1.4.0: 补齐关于页、储存空间与 GitHub 更新检查」
+   和「docs: 补充 GitHub 上传状态与手动步骤」。
+2. Release：https://github.com/Firewoodfire/PicACG-COUI/releases/tag/v1.4.0
+   已上传 PicACG-COUI.apk，资产大小 27,905,455 字节。
+3. GitHub 记录的资产 SHA256 为
+   3fd7a13ca9b6c3ad3aebf0610c351465a3337224bb02c08047e82870a73535ff，
+   与本地 APK 完全一致。
+4. 应用内「设置 → 关于 → 软件版本」会读取该仓库最新 Release 的标签和说明；
+   Release 发布后即可正常检查更新。
+5. 不需要重新编译：交付的 APK 已内置仓库地址和更新检查逻辑。
