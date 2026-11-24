@@ -382,8 +382,7 @@ PicACG-COUI-Source.zip，解压后用 Android Studio 打开 coui/ 目录。
 十一、GitHub 上传状态（已完成，2026-11-25）
 ------------------------------------------
 1. 源码仓库：https://github.com/Firewoodfire/PicACG-COUI
-   已推送 main 分支，提交为「v1.4.0: 补齐关于页、储存空间与 GitHub 更新检查」
-   和「docs: 补充 GitHub 上传状态与手动步骤」。
+   main 分支已推送 v1.4.0 完整源码，后续 README 状态更新也已提交。
 2. Release：https://github.com/Firewoodfire/PicACG-COUI/releases/tag/v1.4.0
    已上传 PicACG-COUI.apk，资产大小 27,905,455 字节。
 3. GitHub 记录的资产 SHA256 为
