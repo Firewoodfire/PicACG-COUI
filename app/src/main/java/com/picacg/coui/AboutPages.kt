@@ -18,13 +18,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -42,15 +40,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.itos.coui.switch.Switch
 import com.itos.coui.dialog.CouiDialogAction
 import com.itos.coui.dialog.CouiDialogActionStyle
 import com.itos.coui.dialog.CouiDialogDefaults
 import com.itos.coui.dialog.CouiDialogPlacement
 import com.itos.coui.dialog.Dialog
+import com.itos.coui.layout.Divider
+import com.itos.coui.layout.Group
 import com.itos.coui.theme.CouiTheme
 import com.picacg.coui.data.ApiConfigStore
 import com.picacg.coui.data.ReleaseInfo
@@ -101,28 +99,13 @@ fun AboutDetailScreen(page: AboutPage, onBack: () -> Unit) {
 
 @Composable
 internal fun AboutBackButton(onBack: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().padding(start = 8.dp, end = 20.dp, top = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(CouiTheme.colorScheme.container.copy(alpha = 0.7f))
-                .clickable { onBack() },
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = BackArrowIcon,
-                contentDescription = "返回",
-                tint = CouiTheme.colorScheme.onSurface,
-                modifier = Modifier.size(21.dp),
-            )
-        }
-    }
+    PageHeader("", onBack = onBack)
 }
 
+/**
+ * 二级页骨架：COUI 顶栏（滚动时正文从顶栏下方模糊穿过）+ 惯性滚动正文。
+ * 内容一律用 [Group] / [Item] / [Divider] 组织，不再自绘卡片。
+ */
 @Composable
 private fun AboutSubpage(
     title: String,
@@ -130,91 +113,58 @@ private fun AboutSubpage(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(Modifier.fillMaxSize()) {
-        AboutBackButton(onBack)
+        PageHeader(title, onBack = onBack)
         Column(
             Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp),
+                .navigationBarsPadding(),
         ) {
-            Text(
-                title,
-                fontSize = 30.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = (-0.4).sp,
-                color = CouiTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(top = 13.dp, bottom = 20.dp),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
             content()
             Spacer(Modifier.height(32.dp))
         }
     }
 }
 
+/** 关于页的入口列表：Group + Item，箭头用 COUI 的细箭头而不是字符「›」。 */
 @Composable
 internal fun AboutActionCard(rows: List<AboutAction>, onOpen: (AboutPage) -> Unit) {
-    Panel {
+    Group {
         rows.forEachIndexed { index, row ->
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .clickable { onOpen(row.page) }
-                    .padding(vertical = 11.dp, horizontal = 2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(row.label, fontSize = 15.sp, color = CouiTheme.colorScheme.onSurface, maxLines = 1)
-                }
-                if (row.value.isNotBlank()) {
-                    Text(
-                        row.value,
-                        fontSize = 13.sp,
-                        color = CouiTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                    )
-                    Spacer(Modifier.width(8.dp))
-                }
-                Text("›", fontSize = 24.sp, color = CouiTheme.colorScheme.onSurfaceVariant)
-            }
-            if (index != rows.lastIndex) AboutDivider()
+            CouiSettingRow(
+                title = row.label,
+                value = row.value.ifBlank { null },
+                showChevron = true,
+                onClick = { onOpen(row.page) },
+            )
+            if (index != rows.lastIndex) Divider()
         }
     }
 }
 
-@Composable
-private fun AboutDivider() {
-    Box(Modifier.fillMaxWidth().height(1.dp).background(CouiTheme.colorScheme.onSurface.copy(alpha = 0.07f)))
-}
-
+/** 只读键值组。 */
 @Composable
 private fun KeyValueCard(rows: List<Pair<String, String>>) {
-    Panel {
+    Group {
         rows.forEachIndexed { index, row ->
-            Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(row.first, fontSize = 14.sp, color = CouiTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
-                Spacer(Modifier.width(12.dp))
-                Text(
-                    row.second,
-                    fontSize = 13.sp,
-                    color = CouiTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            if (index != rows.lastIndex) AboutDivider()
+            CouiSettingRow(title = row.first, value = row.second)
+            if (index != rows.lastIndex) Divider()
         }
     }
 }
 
+/** 说明段落：组标题 + 段正文，左右留白与 Item 的 16dp 对齐。 */
 @Composable
 private fun TextPanel(title: String, body: String) {
-    Panel {
-        Text(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = CouiTheme.colorScheme.onSurface)
-        Spacer(Modifier.height(8.dp))
-        Text(body, fontSize = 13.sp, lineHeight = 21.sp, color = CouiTheme.colorScheme.onSurfaceVariant)
+    Group(title = title) {
+        CouiGroupBody {
+            Text(
+                body,
+                fontSize = 13.sp,
+                lineHeight = 21.sp,
+                color = CouiTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -269,81 +219,70 @@ private fun StoragePage(onBack: () -> Unit) {
                 ),
             )
             Spacer(Modifier.height(12.dp))
-            Panel {
-                Text("缓存管理", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = CouiTheme.colorScheme.onSurface)
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "缓存用于加快封面加载，清理后不会退出登录。所有操作仅针对本应用的私有目录。",
-                    fontSize = 12.sp,
-                    lineHeight = 19.sp,
-                    color = CouiTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    CouiButton(
-                        "清理封面",
-                        primary = false,
-                        enabled = data.coverCache.bytes > 0 && !busy,
-                        modifier = Modifier.weight(1f),
-                    ) { confirm = StorageClearAction.Covers }
-                    CouiButton(
-                        "清理其他",
-                        primary = false,
-                        enabled = data.otherCache.bytes > 0 && !busy,
-                        modifier = Modifier.weight(1f),
-                    ) { confirm = StorageClearAction.OtherCache }
+            Group(title = "缓存管理") {
+                CouiGroupBody {
+                    Column {
+                        Text(
+                            "缓存用于加快封面加载，清理后不会退出登录。所有操作仅针对本应用的私有目录。",
+                            fontSize = 12.sp,
+                            lineHeight = 19.sp,
+                            color = CouiTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            CouiButton(
+                                "清理封面",
+                                primary = false,
+                                enabled = data.coverCache.bytes > 0 && !busy,
+                                modifier = Modifier.weight(1f),
+                            ) { confirm = StorageClearAction.Covers }
+                            CouiButton(
+                                "清理其他",
+                                primary = false,
+                                enabled = data.otherCache.bytes > 0 && !busy,
+                                modifier = Modifier.weight(1f),
+                            ) { confirm = StorageClearAction.OtherCache }
+                        }
+                    }
                 }
             }
             Spacer(Modifier.height(12.dp))
-            Panel {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("下载内容", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = CouiTheme.colorScheme.onSurface)
-                        Spacer(Modifier.height(4.dp))
+            Group(title = "下载内容") {
+                CouiGroupBody {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             if (data.downloadFiles.isEmpty()) "暂无文件；当前版本尚未提供漫画下载器"
                             else "共 ${data.downloadFiles.size} 个文件，可逐项删除",
                             fontSize = 12.sp,
+                            lineHeight = 19.sp,
                             color = CouiTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f),
                         )
-                    }
-                    if (data.downloadFiles.isNotEmpty()) {
-                        Text(
-                            "全部清空",
-                            fontSize = 13.sp,
-                            color = CouiTheme.colorScheme.accent,
-                            modifier = Modifier.clickable(enabled = !busy) { confirm = StorageClearAction.Downloads }.padding(8.dp),
-                        )
-                    }
-                }
-                if (data.downloadFiles.isNotEmpty()) {
-                    Spacer(Modifier.height(8.dp))
-                    data.downloadFiles.forEach { file ->
-                        AboutDivider()
-                        Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text(file.name, fontSize = 13.sp, color = CouiTheme.colorScheme.onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                Spacer(Modifier.height(3.dp))
-                                Text(
-                                    "${StorageManager.formatSize(file.bytes)} · ${formatDate(file.modified)}",
-                                    fontSize = 11.sp,
-                                    color = CouiTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
+                        if (data.downloadFiles.isNotEmpty()) {
                             Text(
-                                "删除",
+                                "全部清空",
                                 fontSize = 13.sp,
                                 color = CouiTheme.colorScheme.accent,
-                                modifier = Modifier.clickable(enabled = !busy) {
-                                    scope.launch {
-                                        busy = true
-                                        notice = if (StorageManager.deleteDownload(context, file.path)) "已删除 ${file.name}" else "删除失败"
-                                        revision++
-                                    }
-                                }.padding(8.dp),
+                                modifier = Modifier.clickable(enabled = !busy) { confirm = StorageClearAction.Downloads }.padding(8.dp),
                             )
                         }
                     }
+                }
+                data.downloadFiles.forEach { file ->
+                    Divider()
+                    CouiSettingRow(
+                        title = file.name,
+                        summary = "${StorageManager.formatSize(file.bytes)} · ${formatDate(file.modified)}",
+                        value = "删除",
+                        enabled = !busy,
+                        onClick = {
+                            scope.launch {
+                                busy = true
+                                notice = if (StorageManager.deleteDownload(context, file.path)) "已删除 ${file.name}" else "删除失败"
+                                revision++
+                            }
+                        },
+                    )
                 }
             }
             if (notice.isNotBlank()) {
@@ -496,44 +435,41 @@ private fun StatusPage(onBack: () -> Unit) {
         val crash = remember(revision) { CrashGuard.read(context) }
         if (crash.isNotBlank()) {
             Spacer(Modifier.height(12.dp))
-            Panel {
-                Text(
-                    "上次启动崩溃日志",
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = CouiTheme.colorScheme.onSurface,
-                )
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    "已自动切到兼容模式，避免再次闪退。把这段日志反馈给开发者即可定位问题。",
-                    fontSize = 11.sp,
-                    lineHeight = 17.sp,
-                    color = CouiTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    crash.take(3000),
-                    fontSize = 10.sp,
-                    lineHeight = 15.sp,
-                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                    color = CouiTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(12.dp))
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    CouiButton("复制日志", primary = false, modifier = Modifier.weight(1f)) {
-                        runCatching {
-                            val cm = context.getSystemService(android.content.ClipboardManager::class.java)
-                            cm?.setPrimaryClip(
-                                android.content.ClipData.newPlainText("PicACG crash", crash),
-                            )
+            Group(title = "上次启动崩溃日志") {
+                CouiGroupBody {
+                    Column {
+                        Text(
+                            "已自动切到兼容模式，避免再次闪退。把这段日志反馈给开发者即可定位问题。",
+                            fontSize = 11.sp,
+                            lineHeight = 17.sp,
+                            color = CouiTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            crash.take(3000),
+                            fontSize = 10.sp,
+                            lineHeight = 15.sp,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            color = CouiTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            CouiButton("复制日志", primary = false, modifier = Modifier.weight(1f)) {
+                                runCatching {
+                                    val cm = context.getSystemService(android.content.ClipboardManager::class.java)
+                                    cm?.setPrimaryClip(
+                                        android.content.ClipData.newPlainText("PicACG crash", crash),
+                                    )
+                                }
+                            }
+                            CouiButton("清除记录", primary = false, modifier = Modifier.weight(1f)) {
+                                CrashGuard.clear(context)
+                                revision++
+                            }
                         }
-                    }
-                    CouiButton("清除记录", primary = false, modifier = Modifier.weight(1f)) {
-                        CrashGuard.clear(context)
-                        revision++
                     }
                 }
             }
@@ -562,22 +498,14 @@ private fun ExperiencePage(onBack: () -> Unit) {
     val prefs = remember(context) { context.getSharedPreferences("experience_plan", Context.MODE_PRIVATE) }
     var joined by remember { mutableStateOf(prefs.getBoolean("joined", false)) }
     AboutSubpage("体验改进计划", onBack) {
-        Panel {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("加入体验改进计划", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = CouiTheme.colorScheme.onSurface)
-                    Spacer(Modifier.height(4.dp))
-                    Text(if (joined) "已记录参与意愿" else "未加入", fontSize = 12.sp, color = CouiTheme.colorScheme.onSurfaceVariant)
-                }
-                Spacer(Modifier.width(10.dp))
-                Switch(
-                    checked = joined,
-                    onCheckedChange = {
-                        joined = it
-                        prefs.edit().putBoolean("joined", it).apply()
-                    },
-                    dark = LocalDarkMode.current,
-                )
+        Group {
+            CouiSwitchRow(
+                title = if (joined) "已加入体验改进计划" else "加入体验改进计划",
+                summary = if (joined) "已记录参与意愿，仅保存在本机" else "未加入",
+                checked = joined,
+            ) {
+                joined = it
+                prefs.edit().putBoolean("joined", it).apply()
             }
         }
         Spacer(Modifier.height(12.dp))
@@ -608,89 +536,87 @@ private fun SoftwareVersionPage(onBack: () -> Unit) {
             ),
         )
         Spacer(Modifier.height(12.dp))
-        Panel {
-            Text("检查更新", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = CouiTheme.colorScheme.onSurface)
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "仅请求公开仓库的最新 Release，不会上传设备、账号或使用数据。",
-                fontSize = 12.sp,
-                lineHeight = 18.sp,
-                color = CouiTheme.colorScheme.onSurfaceVariant,
-            )
-            if (checking) {
-                Spacer(Modifier.height(14.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(Modifier.size(20.dp), color = CouiTheme.colorScheme.accent, strokeWidth = 2.dp)
-                    Spacer(Modifier.width(10.dp))
-                    Text("正在查询 GitHub Releases…", fontSize = 12.sp, color = CouiTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-            release?.let { info ->
-                Spacer(Modifier.height(14.dp))
-                Text(
-                    if (info.hasUpdate) "发现新版本 ${info.version}" else "当前已是最新版本（${info.version}）",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = CouiTheme.colorScheme.accent,
-                )
-                if (info.notes.isNotBlank()) {
-                    Spacer(Modifier.height(6.dp))
-                    Text(info.notes.take(1200), fontSize = 12.sp, lineHeight = 18.sp, color = CouiTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-            if (message.isNotBlank()) {
-                Spacer(Modifier.height(10.dp))
-                Text(message, fontSize = 12.sp, lineHeight = 18.sp, color = CouiTheme.colorScheme.onSurfaceVariant)
-            }
-            Spacer(Modifier.height(14.dp))
-            CouiButton("检查更新", enabled = !checking, modifier = Modifier.fillMaxWidth()) {
-                scope.launch {
-                    checking = true
-                    message = ""
-                    release = null
-                    UpdateChecker.checkLatest()
-                        .onSuccess {
-                            release = it
-                            message = if (infoDate(it).isBlank()) "" else "发布时间：${infoDate(it)}"
+        Group(title = "检查更新") {
+            CouiGroupBody {
+                Column {
+                    Text(
+                        "仅请求公开仓库的最新 Release，不会上传设备、账号或使用数据。",
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp,
+                        color = CouiTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (checking) {
+                        Spacer(Modifier.height(14.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(Modifier.size(20.dp), color = CouiTheme.colorScheme.accent, strokeWidth = 2.dp)
+                            Spacer(Modifier.width(10.dp))
+                            Text("正在查询 GitHub Releases…", fontSize = 12.sp, color = CouiTheme.colorScheme.onSurfaceVariant)
                         }
-                        .onFailure { message = it.message ?: "检查更新失败" }
-                    checking = false
+                    }
+                    release?.let { info ->
+                        Spacer(Modifier.height(14.dp))
+                        Text(
+                            if (info.hasUpdate) "发现新版本 ${info.version}" else "当前已是最新版本（${info.version}）",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = CouiTheme.colorScheme.accent,
+                        )
+                        if (info.notes.isNotBlank()) {
+                            Spacer(Modifier.height(6.dp))
+                            Text(info.notes.take(1200), fontSize = 12.sp, lineHeight = 18.sp, color = CouiTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    if (message.isNotBlank()) {
+                        Spacer(Modifier.height(10.dp))
+                        Text(message, fontSize = 12.sp, lineHeight = 18.sp, color = CouiTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Spacer(Modifier.height(14.dp))
+                    CouiButton("检查更新", enabled = !checking, modifier = Modifier.fillMaxWidth()) {
+                        scope.launch {
+                            checking = true
+                            message = ""
+                            release = null
+                            UpdateChecker.checkLatest()
+                                .onSuccess {
+                                    release = it
+                                    message = if (infoDate(it).isBlank()) "" else "发布时间：${infoDate(it)}"
+                                }
+                                .onFailure { message = it.message ?: "检查更新失败" }
+                            checking = false
+                        }
+                    }
+                    val url = release?.url?.ifBlank { null } ?: UpdateChecker.releasesUrl
+                    if (url.isNotBlank()) {
+                        Spacer(Modifier.height(10.dp))
+                        CouiButton("查看更新页面", primary = false, modifier = Modifier.fillMaxWidth()) { openWebPage(context, url) }
+                    }
                 }
-            }
-            val url = release?.url?.ifBlank { null } ?: UpdateChecker.releasesUrl
-            if (url.isNotBlank()) {
-                Spacer(Modifier.height(10.dp))
-                CouiButton("查看更新页面", primary = false, modifier = Modifier.fillMaxWidth()) { openWebPage(context, url) }
             }
         }
         Spacer(Modifier.height(12.dp))
-        Panel {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "关于这个应用",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = CouiTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f),
-                )
+        Group(
+            title = "关于这个应用",
+            headerActions = {
                 Text(
                     "完整日志",
-                    fontSize = 12.sp,
+                    fontSize = 13.sp,
                     color = CouiTheme.colorScheme.accent,
                     modifier = Modifier.clickable {
                         openWebPage(context, "${UpdateChecker.projectUrl}/blob/main/CHANGELOG.md")
                     },
                 )
+            },
+        ) {
+            CouiGroupBody {
+                Text(
+                    "PicACG COUI 是一个 COUI / ColorOS 17 风格的漫画浏览客户端：" +
+                        "主页信息流、关键词搜索、分类筛选、日/周/月排行、公告、详情与章节目录，" +
+                        "都在同一套毛玻璃界面里。接口默认走哔咔官方 picaapi，登录后即可使用。",
+                    fontSize = 13.sp,
+                    lineHeight = 21.sp,
+                    color = CouiTheme.colorScheme.onSurfaceVariant,
+                )
             }
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "PicACG COUI 是一个 COUI / ColorOS 17 风格的漫画浏览客户端：" +
-                    "主页信息流、关键词搜索、分类筛选、日/周/月排行、公告、详情与章节目录，" +
-                    "都在同一套毛玻璃界面里。接口默认走哔咔官方 picaapi，登录后即可使用。",
-                fontSize = 12.sp,
-                lineHeight = 19.sp,
-                color = CouiTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
 }

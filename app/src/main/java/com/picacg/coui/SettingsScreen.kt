@@ -6,13 +6,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -50,15 +50,16 @@ import com.picacg.coui.data.HttpRepository
 import com.picacg.coui.data.LoginResult
 import com.picacg.coui.data.ProbeResult
 import com.itos.coui.layout.Divider
-import com.itos.coui.switch.Switch
+import com.itos.coui.layout.Group
 import com.itos.coui.theme.CouiTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * 设置页：在这里填接口地址就能接上自己的后端，填完点「保存并生效」立即换数据源，不用改代码。
+ * 设置页。默认内置哔咔接口，登录即用；需要接自己的后端时关掉内置开关再填地址。
  *
- * 输入时会即时保存到本地（防止误退出丢失），但只有点「保存并生效」才会让各页面重新拉数据。
+ * 排版全部换成 COUI 的分组卡片（Group / Item / Divider）：
+ * 分组标题在卡片外，条目行高 48dp、左右 16dp，和 ColorOS 设置页一致。
  */
 @Composable
 fun SettingsScreen(onBack: () -> Unit, onOpenAbout: () -> Unit = {}) {
@@ -95,166 +96,84 @@ fun SettingsScreen(onBack: () -> Unit, onOpenAbout: () -> Unit = {}) {
         hint = if (draft.enabled) "已自动生效，各页面已刷新" else "已自动生效，当前使用示例数据"
     }
 
-    Box(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize()) {
+        PageHeader("设置", onBack = onBack, actions = {
+            Text(
+                "关于",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                color = scheme.accent,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { onOpenAbout() }
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+            )
+        })
 
-            // 顶栏
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
-                    Modifier
-                        .clip(RoundedCornerShape(14.dp))
-                        .clickable { onBack() }
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                ) {
-                    Text("返回", fontSize = 14.sp, color = scheme.accent, fontWeight = FontWeight.Medium)
-                }
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    "接口设置",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = scheme.onSurface,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 1,
+        Column(
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .navigationBarsPadding()
+                .padding(bottom = 28.dp),
+        ) {
+            // ---------------- 当前状态
+            Group {
+                CouiSettingRow(
+                    title = when {
+                        draft.builtin -> "当前使用：内置哔咔接口"
+                        draft.enabled -> "当前使用：自定义接口"
+                        else -> "当前使用：示例数据"
+                    },
+                    summary = when {
+                        draft.builtin -> "picaapi.picacomic.com · 签名与路径已内置，登录即可用"
+                        draft.baseUrl.isBlank() -> "打开内置接口，或在下方填写自己的服务地址"
+                        else -> draft.baseUrl
+                    },
+                    icon = { StatusDot(active = draft.enabled) },
                 )
-                // 右上角进「关于」：作者、版本、交流群都在那里
-                Box(
-                    Modifier
-                        .clip(RoundedCornerShape(14.dp))
-                        .clickable { onOpenAbout() }
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                ) {
-                    Text("关于", fontSize = 14.sp, color = scheme.accent, fontWeight = FontWeight.Medium)
-                }
             }
 
-            Column(
-                Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp),
-            ) {
-                // 当前状态
-                Panel {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            Modifier
-                                .size(8.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(if (draft.enabled) scheme.accent else scheme.onSurfaceVariant),
-                        )
-                        Spacer(Modifier.width(10.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                when {
-                                    draft.builtin -> "当前使用：内置哔咔接口"
-                                    draft.enabled -> "当前使用：自定义接口"
-                                    else -> "当前使用：示例数据"
-                                },
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = scheme.onSurface,
-                            )
-                            Spacer(Modifier.height(3.dp))
-                            Text(
-                                when {
-                                    draft.builtin -> "picaapi.picacomic.com · 签名与路径已内置，登录即可用"
-                                    draft.baseUrl.isBlank() -> "填写下方接口地址即可接入你自己的服务"
-                                    else -> draft.baseUrl
-                                },
-                                fontSize = 12.sp,
-                                color = scheme.onSurfaceVariant,
-                            )
-                        }
-                    }
+            // ---------------- 接口来源
+            Group(title = "接口") {
+                CouiSwitchRow(
+                    title = "使用内置哔咔接口",
+                    summary = "地址、签名和全部路径都已内置，登录后直接用，不用自己填",
+                    checked = draft.builtin,
+                    onCheckedChange = { v ->
+                        edit { it.copy(builtin = v, baseUrl = if (v) "" else it.baseUrl) }
+                    },
+                )
+                if (!draft.builtin) {
+                    Divider()
+                    CouiSwitchRow(
+                        title = "启用自定义接口",
+                        summary = "关闭后立即回到示例数据，地址会保留",
+                        checked = draft.useCustom,
+                        onCheckedChange = { v -> edit { it.copy(useCustom = v) } },
+                    )
                 }
+                Divider()
+                CouiSwitchRow(
+                    title = "兼容模式",
+                    summary = "关闭背景模糊与 COUI 折叠顶栏、浮动底栏。启动闪退时自动打开",
+                    checked = ApiConfigStore.compatMode,
+                    onCheckedChange = { ApiConfigStore.applyCompat(it) },
+                )
+            }
 
-                // 接口来源
-                SettingsSection("接口来源") {
-                    Row(
-                        Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text("使用内置哔咔接口", fontSize = 15.sp, color = scheme.onSurface)
-                            Spacer(Modifier.height(3.dp))
-                            Text(
-                                "地址、签名和全部接口路径都已内置，登录后直接用，不用自己填",
-                                fontSize = 12.sp,
-                                color = scheme.onSurfaceVariant,
-                                lineHeight = 17.sp,
-                            )
-                        }
-                        Spacer(Modifier.width(10.dp))
-                        Switch(
-                            checked = draft.builtin,
-                            onCheckedChange = { v ->
-                                edit { it.copy(builtin = v, baseUrl = if (v) "" else it.baseUrl) }
-                            },
-                            dark = LocalDarkMode.current,
-                        )
-                    }
-                    if (!draft.builtin) {
-                        Spacer(Modifier.height(16.dp))
-                        Row(
-                            Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(Modifier.weight(1f)) {
-                                Text("启用自定义接口", fontSize = 15.sp, color = scheme.onSurface)
-                                Spacer(Modifier.height(3.dp))
-                                Text(
-                                    "关闭后立即回到示例数据，地址会保留",
-                                    fontSize = 12.sp,
-                                    color = scheme.onSurfaceVariant,
-                                )
-                            }
-                            Spacer(Modifier.width(10.dp))
-                            Switch(
-                                checked = draft.useCustom,
-                                onCheckedChange = { v -> edit { it.copy(useCustom = v) } },
-                                dark = LocalDarkMode.current,
-                            )
-                        }
-                    }
-                    Spacer(Modifier.height(14.dp))
-                    Row(
-                        Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text("兼容模式", fontSize = 15.sp, color = scheme.onSurface)
-                            Spacer(Modifier.height(3.dp))
-                            Text(
-                                "关闭背景模糊与 COUI 顶栏/浮动底栏。启动闪退时自动打开",
-                                fontSize = 12.sp,
-                                color = scheme.onSurfaceVariant,
-                                lineHeight = 17.sp,
-                            )
-                        }
-                        Spacer(Modifier.width(10.dp))
-                        Switch(
-                            checked = com.picacg.coui.data.ApiConfigStore.compatMode,
-                            onCheckedChange = { com.picacg.coui.data.ApiConfigStore.applyCompat(it) },
-                            dark = LocalDarkMode.current,
-                        )
-                    }
-                }
-
-                // 账号登录
-                SettingsSection("账号登录") {
+            // ---------------- 账号
+            Group(title = "账号") {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
                     Text(
                         if (draft.builtin) {
-                            "用哔咔账号登录。密码只在登录时用一次，不保存；登录成功后令牌会存到本地，之后各页面自动带上。"
+                            "用哔咔账号登录。密码只在登录时用一次，不保存；登录成功后令牌存到本地，各页面自动带上。"
                         } else {
-                            "填账号密码，点登录自动换取令牌。密码只在登录时用一次，不会保存到本地，也不会写进任何日志。"
+                            "填账号密码，点登录自动换取令牌。密码只在登录时用一次，不会保存到本地。"
                         },
-                        fontSize = 11.sp,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp,
                         color = scheme.onSurfaceVariant,
-                        lineHeight = 16.sp,
                     )
                     Spacer(Modifier.height(14.dp))
                     CouiField(
@@ -264,7 +183,7 @@ fun SettingsScreen(onBack: () -> Unit, onOpenAbout: () -> Unit = {}) {
                         keyboardType = KeyboardType.Email,
                         onValueChange = { v -> edit { it.copy(account = v) } },
                     )
-                    Spacer(Modifier.height(14.dp))
+                    Spacer(Modifier.height(12.dp))
                     CouiField(
                         label = "密码",
                         value = password,
@@ -274,7 +193,7 @@ fun SettingsScreen(onBack: () -> Unit, onOpenAbout: () -> Unit = {}) {
                         onValueChange = { password = it },
                     )
                     if (!draft.builtin) {
-                        Spacer(Modifier.height(14.dp))
+                        Spacer(Modifier.height(12.dp))
                         CouiField(
                             label = "登录接口路径",
                             value = draft.loginPath,
@@ -283,7 +202,6 @@ fun SettingsScreen(onBack: () -> Unit, onOpenAbout: () -> Unit = {}) {
                         )
                     }
                     Spacer(Modifier.height(16.dp))
-
                     Row(
                         Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -332,15 +250,9 @@ fun SettingsScreen(onBack: () -> Unit, onOpenAbout: () -> Unit = {}) {
                             }
                         }
                     }
-
                     Spacer(Modifier.height(12.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            Modifier
-                                .size(7.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(if (draft.token.isNotBlank()) scheme.accent else scheme.onSurfaceVariant),
-                        )
+                        StatusDot(active = draft.token.isNotBlank(), size = 7.dp)
                         Spacer(Modifier.width(8.dp))
                         Text(
                             if (draft.token.isNotBlank()) {
@@ -354,14 +266,16 @@ fun SettingsScreen(onBack: () -> Unit, onOpenAbout: () -> Unit = {}) {
                         )
                     }
                 }
+            }
 
-                loginResult?.let { r ->
-                    Spacer(Modifier.height(12.dp))
-                    ProbeCard(ProbeResult(r.ok, r.message, r.url, r.preview))
-                }
+            loginResult?.let { r ->
+                Spacer(Modifier.height(12.dp))
+                ProbeCard(ProbeResult(r.ok, r.message, r.url, r.preview))
+            }
 
-                // 地址与令牌
-                SettingsSection("服务地址") {
+            // ---------------- 服务地址
+            Group(title = "服务地址") {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
                     if (!draft.builtin) {
                         CouiField(
                             label = "接口根地址",
@@ -370,7 +284,7 @@ fun SettingsScreen(onBack: () -> Unit, onOpenAbout: () -> Unit = {}) {
                             keyboardType = KeyboardType.Uri,
                             onValueChange = { v -> edit { it.copy(baseUrl = v) } },
                         )
-                        Spacer(Modifier.height(14.dp))
+                        Spacer(Modifier.height(12.dp))
                     }
                     CouiField(
                         label = "访问令牌（登录后自动填入，也可手动填）",
@@ -378,16 +292,17 @@ fun SettingsScreen(onBack: () -> Unit, onOpenAbout: () -> Unit = {}) {
                         placeholder = "登录后自动填入",
                         onValueChange = { v -> edit { it.copy(token = v) } },
                     )
-                    Spacer(Modifier.height(14.dp))
+                    Spacer(Modifier.height(12.dp))
                     if (draft.builtin) {
                         Text(
                             "令牌会写入 Authorization 与 token 两个请求头，内置接口要求原样发送。",
                             fontSize = 11.sp,
+                            lineHeight = 17.sp,
                             color = scheme.onSurfaceVariant,
                         )
                     } else {
                         Row(
-                            Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Column(Modifier.weight(1f)) {
@@ -400,7 +315,7 @@ fun SettingsScreen(onBack: () -> Unit, onOpenAbout: () -> Unit = {}) {
                                 )
                             }
                             Spacer(Modifier.width(10.dp))
-                            Switch(
+                            com.itos.coui.switch.Switch(
                                 checked = draft.tokenRaw,
                                 onCheckedChange = { v -> edit { it.copy(tokenRaw = v) } },
                                 dark = LocalDarkMode.current,
@@ -414,99 +329,77 @@ fun SettingsScreen(onBack: () -> Unit, onOpenAbout: () -> Unit = {}) {
                         )
                     }
                 }
+            }
 
-                // 路径（内置模式已写死，不显示）
-                if (!draft.builtin) {
-                SettingsSection("接口路径") {
-                    Text(
-                        "相对路径会自动拼在根地址后面。占位符：{page} {id} {keyword} {kind}，不用的可以留空。",
-                        fontSize = 11.sp,
-                        color = scheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.height(14.dp))
-                    CouiField(
-                        label = "首页信息流",
-                        value = draft.homePath,
-                        placeholder = "/api/home?page={page}",
-                        onValueChange = { v -> edit { it.copy(homePath = v) } },
-                    )
-                    Spacer(Modifier.height(14.dp))
-                    CouiField(
-                        label = "分类列表",
-                        value = draft.categoriesPath,
-                        placeholder = "/api/categories",
-                        onValueChange = { v -> edit { it.copy(categoriesPath = v) } },
-                    )
-                    Spacer(Modifier.height(14.dp))
-                    CouiField(
-                        label = "排行榜（{kind} = day / week / month）",
-                        value = draft.rankingPath,
-                        placeholder = "/api/ranking?type={kind}",
-                        onValueChange = { v -> edit { it.copy(rankingPath = v) } },
-                    )
-                    Spacer(Modifier.height(14.dp))
-                    CouiField(
-                        label = "搜索",
-                        value = draft.searchPath,
-                        placeholder = "/api/search?q={keyword}",
-                        onValueChange = { v -> edit { it.copy(searchPath = v) } },
-                    )
-                    Spacer(Modifier.height(14.dp))
-                    CouiField(
-                        label = "详情",
-                        value = draft.detailPath,
-                        placeholder = "/api/detail/{id}",
-                        onValueChange = { v -> edit { it.copy(detailPath = v) } },
-                    )
-                    Spacer(Modifier.height(14.dp))
-                    CouiField(
-                        label = "公告列表",
-                        value = draft.announcementsPath,
-                        placeholder = "/api/announcements",
-                        onValueChange = { v -> edit { it.copy(announcementsPath = v) } },
-                    )
-                }
-                }
-
-                // 屏蔽设定
-                SettingsSection("屏蔽设定") {
-                    Row(
-                        Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text("启用屏蔽规则", fontSize = 15.sp, color = scheme.onSurface)
-                            Spacer(Modifier.height(3.dp))
-                            Text(
-                                if (draft.block.active) {
-                                    "已启用 ${draft.block.count} 条，列表与详情都会过滤"
-                                } else {
-                                    "关闭时所有内容原样显示"
-                                },
-                                fontSize = 12.sp,
-                                color = scheme.onSurfaceVariant,
-                            )
-                        }
-                        Spacer(Modifier.width(10.dp))
-                        Switch(
-                            checked = draft.block.enabled,
-                            onCheckedChange = { v -> edit { it.copy(block = it.block.copy(enabled = v)) } },
-                            dark = LocalDarkMode.current,
+            // ---------------- 接口路径（内置模式已写死，不显示）
+            if (!draft.builtin) {
+                Group(
+                    title = "接口路径",
+                    footer = "相对路径会自动拼在根地址后面。占位符：{page} {id} {keyword} {kind}，不用的可以留空。",
+                ) {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
+                        CouiField(
+                            label = "首页信息流",
+                            value = draft.homePath,
+                            placeholder = "/api/home?page={page}",
+                            onValueChange = { v -> edit { it.copy(homePath = v) } },
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        CouiField(
+                            label = "分类列表",
+                            value = draft.categoriesPath,
+                            placeholder = "/api/categories",
+                            onValueChange = { v -> edit { it.copy(categoriesPath = v) } },
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        CouiField(
+                            label = "排行榜（{kind} = day / week / month）",
+                            value = draft.rankingPath,
+                            placeholder = "/api/ranking?type={kind}",
+                            onValueChange = { v -> edit { it.copy(rankingPath = v) } },
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        CouiField(
+                            label = "搜索",
+                            value = draft.searchPath,
+                            placeholder = "/api/search?q={keyword}",
+                            onValueChange = { v -> edit { it.copy(searchPath = v) } },
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        CouiField(
+                            label = "详情",
+                            value = draft.detailPath,
+                            placeholder = "/api/detail/{id}",
+                            onValueChange = { v -> edit { it.copy(detailPath = v) } },
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        CouiField(
+                            label = "公告列表",
+                            value = draft.announcementsPath,
+                            placeholder = "/api/announcements",
+                            onValueChange = { v -> edit { it.copy(announcementsPath = v) } },
                         )
                     }
-                    Spacer(Modifier.height(12.dp))
-                    Text(
-                        "每行一条，格式：\n" +
-                            "普通关键词     命中标题 / 简介 / 作者 / 标签任意一处即屏蔽\n" +
-                            "author:某某     只看某个维度（author / tag / title / desc）\n" +
-                            "re:(?i)a|b      正则，以 re: 开头\n" +
-                            "#123456        按条目 id 精确屏蔽\n" +
-                            "以 // 开头的行是注释，空行忽略。",
-                        fontSize = 11.sp,
-                        color = scheme.onSurfaceVariant,
-                        lineHeight = 17.sp,
-                    )
-                    Spacer(Modifier.height(12.dp))
+                }
+            }
+
+            // ---------------- 屏蔽设定
+            Group(
+                title = "屏蔽",
+                footer = "每行一条。author: / tag: / title: / desc: 只看某个维度，re: 开头是正则，# 开头按 id 精确匹配。// 开头是注释。",
+            ) {
+                CouiSwitchRow(
+                    title = "启用屏蔽规则",
+                    summary = if (draft.block.active) {
+                        "已启用 ${draft.block.count} 条，列表与详情都会过滤"
+                    } else {
+                        "关闭时所有内容原样显示"
+                    },
+                    checked = draft.block.enabled,
+                    onCheckedChange = { v -> edit { it.copy(block = it.block.copy(enabled = v)) } },
+                )
+                Divider()
+                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
                     CouiField(
                         label = "规则（每行一条）",
                         value = draft.block.raw,
@@ -515,7 +408,7 @@ fun SettingsScreen(onBack: () -> Unit, onOpenAbout: () -> Unit = {}) {
                         minLines = 5,
                         onValueChange = { v -> edit { it.copy(block = it.block.copy(raw = v)) } },
                     )
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(12.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         CouiButton(
                             text = "清空规则",
@@ -533,83 +426,76 @@ fun SettingsScreen(onBack: () -> Unit, onOpenAbout: () -> Unit = {}) {
                         }
                     }
                 }
+            }
 
-                Spacer(Modifier.height(20.dp))
+            // ---------------- 关于
+            Group {
+                CouiSettingRow(
+                    title = "关于此应用",
+                    summary = "作者、版本信息、QQ 交流群",
+                    showChevron = true,
+                    onClick = onOpenAbout,
+                )
+            }
 
-                // 关于：作者、版本、QQ 交流群
-                Panel(modifier = Modifier.clickable { onOpenAbout() }) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                "关于此应用",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = scheme.onSurface,
-                            )
-                            Spacer(Modifier.height(3.dp))
-                            Text(
-                                "作者、版本信息、QQ 交流群",
-                                fontSize = 12.sp,
-                                color = scheme.onSurfaceVariant,
-                            )
-                        }
-                        Text("›", fontSize = 20.sp, color = scheme.onSurfaceVariant)
+            // ---------------- 操作
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, top = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                CouiButton(
+                    text = "保存并生效",
+                    primary = true,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    ApiConfigStore.saveAndApply(draft)
+                    applied = draft
+                    hint = when {
+                        draft.builtin -> "已生效，正在使用内置哔咔接口"
+                        draft.enabled -> "已生效，正在使用自定义接口"
+                        else -> "已生效，正在使用示例数据"
                     }
                 }
-
-                Spacer(Modifier.height(20.dp))
-
-                // 操作
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    CouiButton(
-                        text = "保存并生效",
-                        primary = true,
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        ApiConfigStore.saveAndApply(draft)
-                        applied = draft
-                        hint = when {
-                            draft.builtin -> "已生效，正在使用内置哔咔接口"
-                            draft.enabled -> "已生效，正在使用自定义接口"
-                            else -> "已生效，正在使用示例数据"
+                CouiButton(
+                    text = "测试连接",
+                    primary = false,
+                    loading = probing,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    scope.launch {
+                        probing = true
+                        result = null
+                        result = if (!draft.enabled) {
+                            ProbeResult(false, "请先打开内置接口或填写接口根地址", "", "")
+                        } else {
+                            runCatching { HttpRepository(draft).probe() }
+                                .getOrElse { ProbeResult(false, it.message ?: "未知错误", "", "") }
                         }
-                    }
-                    CouiButton(
-                        text = "测试连接",
-                        primary = false,
-                        loading = probing,
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        scope.launch {
-                            probing = true
-                            result = null
-                            result = if (!draft.enabled) {
-                                ProbeResult(false, "请先打开内置接口或填写接口根地址", "", "")
-                            } else {
-                                runCatching { HttpRepository(draft).probe() }
-                                    .getOrElse { ProbeResult(false, it.message ?: "未知错误", "", "") }
-                            }
-                            probing = false
-                        }
+                        probing = false
                     }
                 }
+            }
 
-                if (hint.isNotEmpty()) {
-                    Spacer(Modifier.height(12.dp))
-                    Text(hint, fontSize = 12.sp, color = scheme.accent, modifier = Modifier.padding(start = 4.dp))
-                }
+            if (hint.isNotEmpty()) {
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    hint,
+                    fontSize = 12.sp,
+                    color = scheme.accent,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+            }
 
-                // 测试结果
-                result?.let { r ->
-                    Spacer(Modifier.height(16.dp))
-                    ProbeCard(r)
-                }
+            result?.let { r ->
+                Spacer(Modifier.height(12.dp))
+                ProbeCard(r)
+            }
 
-                // 字段映射说明
-                Spacer(Modifier.height(22.dp))
-                Panel {
-                    Text("字段怎么对应", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = scheme.onSurface)
-                    Spacer(Modifier.height(8.dp))
+            // ---------------- 字段映射说明
+            Group(title = "字段映射") {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
                     Text(
                         "解析是自动的，会依次尝试常见字段名：\n" +
                             "标题 title / name，封面 cover / image / thumb，\n" +
@@ -617,34 +503,24 @@ fun SettingsScreen(onBack: () -> Unit, onOpenAbout: () -> Unit = {}) {
                             "列表 list / docs / items / data / result。\n" +
                             "所以大部分 REST 接口填上地址就能用。解析不到时点「测试连接」，看原始返回再对一下字段。",
                         fontSize = 12.sp,
+                        lineHeight = 19.sp,
                         color = scheme.onSurfaceVariant,
-                        lineHeight = 18.sp,
                     )
                 }
-
-                Spacer(Modifier.height(40.dp))
             }
         }
     }
 }
 
-/** 一组设置项，外面套 Panel。 */
+/** 状态点：强调色表示可用，灰色表示未启用。 */
 @Composable
-private fun SettingsSection(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxWidth()) {
-        Text(
-            title,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = CouiTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 4.dp, top = 20.dp, bottom = 8.dp),
-        )
-        Panel {
-            Column(Modifier.fillMaxWidth()) {
-                content()
-            }
-        }
-    }
+private fun StatusDot(active: Boolean, size: androidx.compose.ui.unit.Dp = 9.dp) {
+    Box(
+        Modifier
+            .size(size)
+            .clip(RoundedCornerShape(size / 2))
+            .background(if (active) CouiTheme.colorScheme.accent else CouiTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)),
+    )
 }
 
 /** 圆角输入框。COUI 没有通用输入控件，这里按它的材质规范自绘一个。 */
@@ -738,47 +614,47 @@ fun CouiButton(
 private fun ProbeCard(r: ProbeResult) {
     val scheme = CouiTheme.colorScheme
     val okColor = if (r.ok) scheme.accent else Color(0xFFE5484D)
-    Panel {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(okColor),
-            )
-            Spacer(Modifier.width(9.dp))
-            Text(
-                if (r.ok) "连接正常" else "连接失败",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = okColor,
-            )
-        }
-        Spacer(Modifier.height(8.dp))
-        Text(r.message, fontSize = 12.sp, color = scheme.onSurface, lineHeight = 17.sp)
-        if (r.url.isNotEmpty()) {
-            Spacer(Modifier.height(8.dp))
-            Text("请求地址：${r.url}", fontSize = 11.sp, color = scheme.onSurfaceVariant)
-        }
-        if (r.preview.isNotEmpty()) {
-            Spacer(Modifier.height(10.dp))
-            Divider(startIndent = 0.dp, endIndent = 0.dp)
-            Spacer(Modifier.height(10.dp))
-            Text("原始返回（前 1500 字）", fontSize = 11.sp, color = scheme.onSurfaceVariant)
-            Spacer(Modifier.height(6.dp))
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 220.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(scheme.container.copy(alpha = 0.5f))
-                    .padding(10.dp),
-            ) {
+    Group {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                StatusDot(active = r.ok, size = 8.dp)
+                Spacer(Modifier.width(9.dp))
                 Text(
-                    r.preview,
-                    fontSize = 10.sp,
-                    lineHeight = 14.sp,
-                    fontFamily = FontFamily.Monospace,
-                    color = scheme.onSurfaceVariant,
-                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    if (r.ok) "连接正常" else "连接失败",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = okColor,
                 )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(r.message, fontSize = 12.sp, color = scheme.onSurface, lineHeight = 17.sp)
+            if (r.url.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Text("请求地址：${r.url}", fontSize = 11.sp, color = scheme.onSurfaceVariant)
+            }
+            if (r.preview.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                Divider(startIndent = 0.dp, endIndent = 0.dp)
+                Spacer(Modifier.height(10.dp))
+                Text("原始返回（前 1500 字）", fontSize = 11.sp, color = scheme.onSurfaceVariant)
+                Spacer(Modifier.height(6.dp))
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 220.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(scheme.container.copy(alpha = 0.5f))
+                        .padding(10.dp),
+                ) {
+                    Text(
+                        r.preview,
+                        fontSize = 10.sp,
+                        lineHeight = 14.sp,
+                        fontFamily = FontFamily.Monospace,
+                        color = scheme.onSurfaceVariant,
+                        modifier = Modifier.verticalScroll(rememberScrollState()),
+                    )
+                }
             }
         }
     }

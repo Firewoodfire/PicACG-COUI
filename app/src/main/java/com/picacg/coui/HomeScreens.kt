@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -64,7 +65,11 @@ import com.picacg.coui.data.CardItem
 import com.itos.coui.chip.ChipTabRow
 import com.itos.coui.chip.CouiChipTabItem
 import com.itos.coui.scroll.rememberCouiOverscrollEffect
+import com.itos.coui.layout.Group
+import com.itos.coui.layout.Item
 import com.itos.coui.segmentbutton.SegmentedControl
+import com.itos.coui.text.CouiTextKind
+import com.itos.coui.text.Text as CouiText
 import com.itos.coui.theme.CouiTheme
 
 /**
@@ -203,9 +208,9 @@ fun HomeScreen(onOpen: (String) -> Unit) {
                 state = gridState,
                 overscrollEffect = overscroll,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 108.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 108.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 if (cats.isNotEmpty() || blocked > 0) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
@@ -284,7 +289,7 @@ private fun CategoryRow(
         ChipTabRow(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
+                .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
             items = chipItems,
             selectedKey = safeKey,
             onSelectedKeyChange = { onSelect(it.toString()) },
@@ -322,17 +327,20 @@ private fun SearchResults(
     val overscroll = rememberCouiOverscrollEffect()
     Column(Modifier.fillMaxSize()) {
         Row(
-            Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 2.dp, bottom = 10.dp),
-            verticalAlignment = Alignment.Bottom,
+            Modifier
+                .fillMaxWidth()
+                .padding(start = 32.dp, end = 32.dp, top = 6.dp, bottom = 6.dp)
+                .heightIn(min = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 "搜索结果",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
                 color = scheme.onSurface,
                 maxLines = 1,
+                modifier = Modifier.weight(1f),
             )
-            Spacer(Modifier.weight(1f))
             Text(
                 if (loading) "搜索中…" else "${items.size} 部",
                 fontSize = 12.sp,
@@ -350,8 +358,8 @@ private fun SearchResults(
             )
             else -> LazyColumn(
                 Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 108.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                contentPadding = PaddingValues(bottom = 108.dp),
+                verticalArrangement = Arrangement.spacedBy(0.dp),
                 overscrollEffect = overscroll,
             ) {
                 items(items, key = { it.id }) { item ->
@@ -391,7 +399,7 @@ private fun BlockedHint(count: Int) {
 /**
  * 搜索栏。照着 ColorOS / COUI 组件库里那个胶囊搜索框画的：
  * 深色圆角胶囊 + 放大镜 + 灰色提示文字，输入后右侧出现清除按钮，
- * 键盘回车或点放大镜触发搜索。宽度撑满，左右各留 20dp，和页面其他内容对齐。
+ * 键盘回车或点放大镜触发搜索。宽度撑满，左右各留 16dp，和分组卡片对齐。
  *
  * COUI 库里其实有 `com.itos.coui.search.SearchBar`，但它是会展开成全屏搜索页的
  * 交互组件，需要配 CouiBackdrop 才能正常渲染，这里只想要输入框本身，所以自绘。
@@ -409,7 +417,7 @@ fun SearchField(
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 12.dp)
+            .padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 10.dp)
             .clip(shape)
             .background(scheme.container.copy(alpha = 0.85f))
             .clickable(
@@ -668,20 +676,24 @@ fun CategoryScreen(onOpen: (String) -> Unit) {
             }
             else -> LazyColumn(
                 Modifier.weight(1f).fillMaxHeight(),
-                contentPadding = PaddingValues(end = 16.dp, top = 4.dp, bottom = 108.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                contentPadding = PaddingValues(bottom = 108.dp),
+                verticalArrangement = Arrangement.spacedBy(0.dp),
                 overscrollEffect = overscroll,
             ) {
                 item {
+                    // 组标题行：与 COUI 分组标题同为 12sp 次级色，名字单独放大成小标题
                     Row(
-                        Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(start = 32.dp, end = 32.dp, top = 6.dp, bottom = 6.dp)
+                            .heightIn(min = 16.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
                             current ?: "全部",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
                             color = CouiTheme.colorScheme.onSurface,
                             maxLines = 1,
                         )
@@ -716,38 +728,40 @@ fun ItemRow(
     coverHeight: androidx.compose.ui.unit.Dp = 86.dp,
     leading: (@Composable () -> Unit)? = null,
 ) {
-    Panel(modifier = Modifier.clickable { onClick() }) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            leading?.let {
-                it()
-                Spacer(Modifier.width(8.dp))
-            }
-            CoverBlock(item.id, coverWidth, coverHeight, url = item.coverUrl)
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    item.title,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = CouiTheme.colorScheme.onSurface,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    lineHeight = 20.sp,
-                )
-                if (item.subtitle.isNotBlank()) {
-                    Spacer(Modifier.height(5.dp))
-                    Text(
-                        item.subtitle,
-                        fontSize = 12.sp,
-                        color = CouiTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+    Group {
+        Item(onClick = onClick) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                leading?.let {
+                    it()
+                    Spacer(Modifier.width(8.dp))
                 }
-                if (item.tags.isNotEmpty()) {
-                    Spacer(Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        item.tags.take(2).forEach { TagChip(it) }
+                CoverBlock(item.id, coverWidth, coverHeight, url = item.coverUrl)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        item.title,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = CouiTheme.colorScheme.onSurface,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        lineHeight = 20.sp,
+                    )
+                    if (item.subtitle.isNotBlank()) {
+                        Spacer(Modifier.height(5.dp))
+                        Text(
+                            item.subtitle,
+                            fontSize = 12.sp,
+                            color = CouiTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    if (item.tags.isNotEmpty()) {
+                        Spacer(Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            item.tags.take(2).forEach { TagChip(it) }
+                        }
                     }
                 }
             }
@@ -794,13 +808,27 @@ fun RankingScreen(onOpen: (String) -> Unit) {
         SegmentedControl(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),
+                .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
             labels = RANK_KINDS.map { it.second },
             selectedIndex = kindIndex,
             onSelected = { kindIndex = it },
             backdrop = LocalBackdrop.current,
             dark = LocalDarkMode.current,
         )
+        // 分段选择器下方补一条组标题，和设置页、关于页的分组节奏一致
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(start = 32.dp, end = 32.dp, top = 4.dp, bottom = 6.dp)
+                .heightIn(min = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            CouiText(
+                text = "${RANK_KINDS[kindIndex].second} · ${items.size} 部",
+                kind = CouiTextKind.GroupTitle,
+                color = CouiTheme.colorScheme.onSurfaceVariant,
+            )
+        }
 
         when {
             loading -> LoadingBlock("正在加载排行…")
@@ -872,31 +900,34 @@ fun NoticeScreen() {
         else -> LazyColumn(
             Modifier.fillMaxSize(),
             // 底部留 108dp：右下角悬浮的设置按钮会盖在内容上，公告卡片别被压住
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 108.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(bottom = 108.dp),
             overscrollEffect = overscroll,
         ) {
             items(list, key = { it.id }) { a ->
-                Panel {
-                    Text(
-                        a.title,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = CouiTheme.colorScheme.onSurface,
-                        lineHeight = 22.sp,
-                    )
-                    if (a.date.isNotBlank()) {
-                        Spacer(Modifier.height(8.dp))
-                        DateBadge(a.date)
-                    }
-                    if (a.content.isNotBlank()) {
-                        Spacer(Modifier.height(10.dp))
-                        Text(
-                            a.content,
-                            fontSize = 13.sp,
-                            color = CouiTheme.colorScheme.onSurfaceVariant,
-                            lineHeight = 20.sp,
-                        )
+                Group {
+                    CouiGroupBody {
+                        Column {
+                            Text(
+                                a.title,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = CouiTheme.colorScheme.onSurface,
+                                lineHeight = 22.sp,
+                            )
+                            if (a.date.isNotBlank()) {
+                                Spacer(Modifier.height(8.dp))
+                                DateBadge(a.date)
+                            }
+                            if (a.content.isNotBlank()) {
+                                Spacer(Modifier.height(10.dp))
+                                Text(
+                                    a.content,
+                                    fontSize = 13.sp,
+                                    color = CouiTheme.colorScheme.onSurfaceVariant,
+                                    lineHeight = 21.sp,
+                                )
+                            }
+                        }
                     }
                 }
             }

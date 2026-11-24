@@ -121,6 +121,9 @@ private fun App() {
     CouiTheme(darkTheme = dark) {
         var tab by remember { mutableStateOf(Tab.Home) }
         var route by remember { mutableStateOf<Route?>(null) }
+        // API 34+ 把深浅色与设置做成底栏两侧的圆形附件，和 ColorOS 原厂底栏一致；
+        // 低版本或兼容模式仍用两个独立悬浮钮兜底。
+        val dockActions = !compat && Build.VERSION.SDK_INT >= 34
 
         androidx.compose.runtime.CompositionLocalProvider(LocalDarkMode provides dark) {
         // 窗口是透明的（见 res/values/themes.xml），这里自己铺一层实色底，
@@ -170,7 +173,14 @@ private fun App() {
                             }
                         },
                         bottomBar = {
-                            BottomTabs(selected = tab, onSelect = { tab = it })
+                            BottomTabs(
+                                selected = tab,
+                                dark = dark,
+                                useActions = dockActions,
+                                onSelect = { tab = it },
+                                onToggleTheme = { com.picacg.coui.data.ApiConfigStore.applyDark(!dark) },
+                                onOpenSettings = { route = Route.Settings },
+                            )
                         },
                     ) { padding ->
                         Box(Modifier.fillMaxSize().padding(padding)) {
@@ -185,25 +195,28 @@ private fun App() {
                                 }
                             }
 
-                            // 左：深色 / 浅色切换    右：设置
-                            Row(
-                                Modifier
-                                    .align(Alignment.BottomCenter)
-                                    .fillMaxWidth()
-                                    .padding(start = 20.dp, end = 20.dp, bottom = 84.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                FloatingCircle(
-                                    icon = if (dark) SunIcon else MoonIcon,
-                                    contentDescription = if (dark) "切换到浅色" else "切换到深色",
-                                    onClick = { com.picacg.coui.data.ApiConfigStore.applyDark(!dark) },
-                                )
-                                FloatingCircle(
-                                    icon = Icons.Filled.Settings,
-                                    contentDescription = "设置",
-                                    onClick = { route = Route.Settings },
-                                )
+                            // 底栏已经带左右附件时不再画悬浮钮，避免两套入口重复
+                            if (!dockActions) {
+                                // 左：深色 / 浅色切换    右：设置
+                                Row(
+                                    Modifier
+                                        .align(Alignment.BottomCenter)
+                                        .fillMaxWidth()
+                                        .padding(start = 20.dp, end = 20.dp, bottom = 84.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    FloatingCircle(
+                                        icon = if (dark) SunIcon else MoonIcon,
+                                        contentDescription = if (dark) "切换到浅色" else "切换到深色",
+                                        onClick = { com.picacg.coui.data.ApiConfigStore.applyDark(!dark) },
+                                    )
+                                    FloatingCircle(
+                                        icon = Icons.Filled.Settings,
+                                        contentDescription = "设置",
+                                        onClick = { route = Route.Settings },
+                                    )
+                                }
                             }
                         }
                     }
@@ -328,7 +341,8 @@ private fun CompatTopBar(title: String) {
             .fillMaxWidth()
             .background(CouiTheme.colorScheme.background.copy(alpha = 0.96f))
             .statusBarsPadding()
-            .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 12.dp),
+            // 与 COUI 分组标题 / 顶栏标题的 32dp 左边距对齐，列表项和卡片才不会错位
+            .padding(start = 32.dp, end = 20.dp, top = 14.dp, bottom = 10.dp),
     ) {
         Text(
             title,
@@ -343,8 +357,15 @@ private fun CompatTopBar(title: String) {
 
 /** 底部标签栏。API 34+ 用 COUI 原生 NavigationBar（ColorOS 浮动胶囊），低版本或兼容模式降级。 */
 @Composable
-private fun BottomTabs(selected: Tab, onSelect: (Tab) -> Unit) {
-    if (!com.picacg.coui.data.ApiConfigStore.compatMode && Build.VERSION.SDK_INT >= 34) {
+private fun BottomTabs(
+    selected: Tab,
+    dark: Boolean,
+    useActions: Boolean,
+    onSelect: (Tab) -> Unit,
+    onToggleTheme: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
+    if (useActions && Build.VERSION.SDK_INT >= 34) {
         val items = Tab.entries.map { t ->
             CouiNavigationItem(
                 title = t.label,

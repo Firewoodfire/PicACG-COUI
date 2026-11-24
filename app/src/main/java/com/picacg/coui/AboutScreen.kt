@@ -7,18 +7,16 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -42,12 +40,12 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.itos.coui.dialog.CouiDialogAction
 import com.itos.coui.dialog.CouiDialogDefaults
 import com.itos.coui.dialog.Dialog
+import com.itos.coui.layout.Group
 import com.itos.coui.theme.CouiTheme
 import com.picacg.coui.data.StorageManager
 import com.picacg.coui.data.StorageSnapshot
@@ -59,11 +57,8 @@ private const val AUTHOR = "菜菜"
 private const val QQ_GROUP = "1121329450"
 
 /**
- * 关于页。版式参照 ColorOS 的「关于此示例」：
- * 大标题 → 一块大图 → 下面若干行信息。
- *
- * 在大图上做了扩展：图下方接作者栏（头像 + 名字），再接一行可点的「QQ 交流群」。
- * 点群号会依次尝试 QQ 的几种跳转方式，装没装 QQ 都能给出明确结果，不会点了没反应。
+ * 关于页。版式参照 ColorOS 的「关于此手机」：
+ * 大标题 → 主视觉 → 作者 / 信息 / 群 / 各入口，全部用 COUI 的分组卡片。
  */
 @Composable
 fun AboutScreen(
@@ -78,53 +73,59 @@ fun AboutScreen(
     }
 
     Column(Modifier.fillMaxSize()) {
-        AboutBackButton(onBack)
+        PageHeader("关于此应用", onBack = onBack)
 
         Column(
             Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp),
+                .navigationBarsPadding(),
         ) {
-            Text(
-                "关于此应用",
-                fontSize = 34.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = (-0.5).sp,
-                color = scheme.onSurface,
-                modifier = Modifier.padding(top = 13.dp, bottom = 20.dp),
-            )
-
-            AboutHero()
-            Spacer(Modifier.height(20.dp))
-            AuthorCard()
-            Spacer(Modifier.height(12.dp))
-
-            InfoCard(
-                rows = listOf(
-                    InfoRow("应用名", "PicACG", "COUI 版"),
-                    InfoRow("版本", "v15", BuildConfig.VERSION_NAME),
-                    InfoRow("样式参考", "ColorOS", "17"),
-                ),
-            )
-            Spacer(Modifier.height(12.dp))
-
-            Panel(modifier = Modifier.clickable {
-                val r = openQqGroup(ctx, QQ_GROUP)
-                if (!r.first) dialog = r.second to QQ_GROUP
-            }) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    QqIcon(size = 34.dp, tint = Color(0xFF12B7F5))
-                    Spacer(Modifier.width(14.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("QQ 交流群", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = scheme.onSurface)
-                        Spacer(Modifier.height(3.dp))
-                        Text(QQ_GROUP, fontSize = 13.sp, color = scheme.onSurfaceVariant, maxLines = 1)
-                    }
-                    Text("加入 ›", fontSize = 13.sp, color = scheme.accent, maxLines = 1)
-                }
+            Column(Modifier.padding(horizontal = 16.dp).padding(top = 8.dp)) {
+                AboutHero()
+                Spacer(Modifier.height(6.dp))
             }
-            Spacer(Modifier.height(12.dp))
+
+            Group {
+                CouiSettingRow(
+                    title = AUTHOR,
+                    summary = "作者",
+                    iconSize = 52.dp,
+                    icon = {
+                        Image(
+                            painter = painterResource(R.drawable.avatar_cai),
+                            contentDescription = AUTHOR,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(52.dp)
+                                .clip(CircleShape)
+                                .border(1.dp, scheme.onSurface.copy(alpha = 0.10f), CircleShape),
+                        )
+                    },
+                )
+            }
+
+            Group {
+                CouiSettingRow("应用名", value = "PicACG · COUI 版")
+                com.itos.coui.layout.Divider()
+                CouiSettingRow("版本", value = "v${BuildConfig.VERSION_CODE} · ${BuildConfig.VERSION_NAME}")
+                com.itos.coui.layout.Divider()
+                CouiSettingRow("样式参考", value = "ColorOS 17")
+            }
+
+            Group {
+                CouiSettingRow(
+                    title = "QQ 交流群",
+                    summary = QQ_GROUP,
+                    value = "加入",
+                    showChevron = true,
+                    icon = { QqIcon(size = 28.dp, tint = Color(0xFF12B7F5)) },
+                    onClick = {
+                        val r = openQqGroup(ctx, QQ_GROUP)
+                        if (!r.first) dialog = r.second to QQ_GROUP
+                    },
+                )
+            }
 
             AboutActionCard(
                 rows = listOf(
@@ -136,7 +137,6 @@ fun AboutScreen(
                 ),
                 onOpen = onOpen,
             )
-            Spacer(Modifier.height(12.dp))
 
             // 按截图的分组方式：信息类一张卡，计划与版本类另起一张卡；
             // 不放 ColorOS 共创者星球——这不是 ColorOS 系统应用，放进去会误导用户。
@@ -151,7 +151,6 @@ fun AboutScreen(
                 ),
                 onOpen = onOpen,
             )
-            Spacer(Modifier.height(12.dp))
 
             AboutActionCard(
                 rows = listOf(
@@ -161,7 +160,8 @@ fun AboutScreen(
                 ),
                 onOpen = onOpen,
             )
-            Spacer(Modifier.height(32.dp))
+
+            Spacer(Modifier.height(28.dp))
         }
     }
 
@@ -242,96 +242,6 @@ private fun AboutHero() {
                 fontSize = 13.sp,
                 color = Color.White.copy(alpha = 0.85f),
             )
-        }
-    }
-}
-
-/** 作者栏：头像 + 名字 + 一句说明。 */
-@Composable
-private fun AuthorCard() {
-    Panel {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            // 头像资源是我从你给的图里裁的（去掉了两侧对话框残影），
-            // 放在 res/drawable-nodpi/avatar_cai.png，可以随时换成自己的
-            Image(
-                painter = painterResource(R.drawable.avatar_cai),
-                contentDescription = AUTHOR,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(52.dp)
-                    .clip(CircleShape)
-                    .border(1.dp, CouiTheme.colorScheme.onSurface.copy(alpha = 0.10f), CircleShape),
-            )
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    AUTHOR,
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = CouiTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Spacer(Modifier.height(3.dp))
-                Text(
-                    "作者",
-                    fontSize = 12.sp,
-                    color = CouiTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-    }
-}
-
-/** 一行信息：左侧名称，右侧值。 */
-private data class InfoRow(val label: String, val value: String, val sub: String)
-
-/** 多行信息卡。行与行之间用细分割线，和 ColorOS「关于」那块一致。 */
-@Composable
-private fun InfoCard(rows: List<InfoRow>) {
-    val scheme = CouiTheme.colorScheme
-    Panel {
-        rows.forEachIndexed { i, row ->
-            Row(
-                Modifier.fillMaxWidth().padding(vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text(
-                    row.label,
-                    fontSize = 15.sp,
-                    color = scheme.onSurface,
-                    maxLines = 1,
-                    modifier = Modifier.weight(1f),
-                )
-                // 右侧先主值后附加说明：显示成「PicACG  COUI 版」，
-                // 之前写反了会变成「COUI 版 PicACG」
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        row.value,
-                        fontSize = 13.sp,
-                        color = scheme.onSurfaceVariant,
-                        maxLines = 1,
-                    )
-                    if (row.sub.isNotBlank()) {
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            row.sub,
-                            fontSize = 13.sp,
-                            color = scheme.onSurfaceVariant,
-                            maxLines = 1,
-                        )
-                    }
-                }
-            }
-            if (i != rows.lastIndex) {
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(1.dp)
-                        .background(scheme.onSurface.copy(alpha = 0.07f)),
-                )
-            }
         }
     }
 }
