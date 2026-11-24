@@ -477,16 +477,67 @@ private fun StatusPage(onBack: () -> Unit) {
         KeyValueCard(
             listOf(
                 "网络连接" to network,
-                "数据源" to if (config.enabled) "自定义接口" else "内置示例数据",
-                "接口地址" to (config.baseUrl.ifBlank { "未配置" }),
+                "数据源" to when {
+                    config.builtin -> "内置哔咔接口"
+                    config.enabled -> "自定义接口"
+                    else -> "内置示例数据"
+                },
+                "接口地址" to config.effectiveBase.ifBlank { "未配置" },
                 "登录令牌" to if (config.token.isBlank()) "未配置" else "已配置（内容已隐藏）",
                 "内容屏蔽" to if (config.block.active) "已启用" else "未启用",
                 "主题模式" to if (ApiConfigStore.darkMode) "深色" else "浅色",
+                "兼容模式" to if (ApiConfigStore.compatMode) "已开启" else "已关闭",
                 "本地占用" to (storage?.let { StorageManager.formatSize(it.totalBytes) } ?: "计算中…"),
             ),
         )
         Spacer(Modifier.height(12.dp))
         CouiButton("刷新状态", primary = false, modifier = Modifier.fillMaxWidth()) { revision++ }
+
+        val crash = remember(revision) { CrashGuard.read(context) }
+        if (crash.isNotBlank()) {
+            Spacer(Modifier.height(12.dp))
+            Panel {
+                Text(
+                    "上次启动崩溃日志",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = CouiTheme.colorScheme.onSurface,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "已自动切到兼容模式，避免再次闪退。把这段日志反馈给开发者即可定位问题。",
+                    fontSize = 11.sp,
+                    lineHeight = 17.sp,
+                    color = CouiTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    crash.take(3000),
+                    fontSize = 10.sp,
+                    lineHeight = 15.sp,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    color = CouiTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    CouiButton("复制日志", primary = false, modifier = Modifier.weight(1f)) {
+                        runCatching {
+                            val cm = context.getSystemService(android.content.ClipboardManager::class.java)
+                            cm?.setPrimaryClip(
+                                android.content.ClipData.newPlainText("PicACG crash", crash),
+                            )
+                        }
+                    }
+                    CouiButton("清除记录", primary = false, modifier = Modifier.weight(1f)) {
+                        CrashGuard.clear(context)
+                        revision++
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -614,26 +665,33 @@ private fun SoftwareVersionPage(onBack: () -> Unit) {
         }
         Spacer(Modifier.height(12.dp))
         Panel {
-            Text("更新历史", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = CouiTheme.colorScheme.onSurface)
-            Spacer(Modifier.height(10.dp))
-            ReleaseHistory(
-                "v14 · 1.4.0",
-                "补齐储存空间管理、版本/法律/认证/状态/使用说明、体验改进计划和软件版本页；支持下载目录逐项管理与 GitHub Releases 更新检查。",
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "关于这个应用",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = CouiTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    "完整日志",
+                    fontSize = 12.sp,
+                    color = CouiTheme.colorScheme.accent,
+                    modifier = Modifier.clickable {
+                        openWebPage(context, "${UpdateChecker.projectUrl}/blob/main/CHANGELOG.md")
+                    },
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "PicACG COUI 是一个 COUI / ColorOS 17 风格的漫画浏览客户端：" +
+                    "主页信息流、关键词搜索、分类筛选、日/周/月排行、公告、详情与章节目录，" +
+                    "都在同一套毛玻璃界面里。接口默认走哔咔官方 picaapi，登录后即可使用。",
+                fontSize = 12.sp,
+                lineHeight = 19.sp,
+                color = CouiTheme.colorScheme.onSurfaceVariant,
             )
-            AboutDivider()
-            ReleaseHistory("v13 · 1.0", "新增关于此应用、作者菜菜与头像、QQ 交流群入口，并修复信息卡排列。")
-            AboutDivider()
-            ReleaseHistory("v12 · 1.0", "补齐真实封面、自动分页、分类过滤、深色模式持久化、COUI 回弹与状态栏适配。")
         }
-    }
-}
-
-@Composable
-private fun ReleaseHistory(version: String, notes: String) {
-    Column(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
-        Text(version, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = CouiTheme.colorScheme.onSurface)
-        Spacer(Modifier.height(5.dp))
-        Text(notes, fontSize = 12.sp, lineHeight = 18.sp, color = CouiTheme.colorScheme.onSurfaceVariant)
     }
 }
 

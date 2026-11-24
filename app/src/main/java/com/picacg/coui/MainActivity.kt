@@ -18,6 +18,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -28,6 +29,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -75,6 +77,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         // 读取本地保存的接口配置，必须在 setContent 之前
         com.picacg.coui.data.ApiConfigStore.init(applicationContext)
+        // 上次启动崩过：自动降级到兼容模式，先保证能进来，用户可在设置里关掉
+        if (CrashGuard.recent(this)) {
+            com.picacg.coui.data.ApiConfigStore.applyCompat(true)
+        }
         setContent { App() }
     }
 }
@@ -96,6 +102,8 @@ private enum class Tab(val label: String) {
 private fun App() {
     // 深色模式存在 SharedPreferences 里，重启后仍保持上次的选择
     val dark = com.picacg.coui.data.ApiConfigStore.darkMode
+    // 兼容模式：上次启动崩过会自动打开，跳过模糊和 COUI 自定义绘制
+    val compat = com.picacg.coui.data.ApiConfigStore.compatMode
 
     // 状态栏 / 导航栏的图标颜色要跟着反转，否则深色模式下是深色图标压在深色背景上，
     // 时间、电量完全看不见。窗口是透明的（themes.xml），所以必须手动设。
@@ -135,29 +143,31 @@ private fun App() {
                 null -> BackdropRoot {
                     Scaffold(
                         topBar = {
-                            LargeTopAppBar(
-                                title = {
-                                    // 主页显示 App 名（效果和 COUI 组件库首页那个大标题一致），
-                                    // 其余栏目显示自己的名字
-                                    Text(
-                                        if (tab == Tab.Home) "PicACG" else tab.label,
-                                        maxLines = 1,
-                                    )
-                                },
-                                // 40sp / semibold 与 COUI 组件库首页大标题（CouiTextKind.HomeTitle）完全一致
-                                expandedTitleStyle = TextStyle(
-                                    fontSize = 40.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    letterSpacing = (-0.5).sp,
-                                ),
-                                // 收起后与 COUI 的 CouiTextKind.TopBar 一致：18sp / medium
-                                collapsedTitleStyle = TextStyle(
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Medium,
-                                ),
-                                scrollBehavior = CouiTopAppBarDefaults.exitUntilCollapsedScrollBehavior(),
-                                // 深色/浅色已移到左下角悬浮按钮，顶栏不再放操作项
-                            )
+                            val titleText = if (tab == Tab.Home) "PicACG" else tab.label
+                            if (compat) {
+                                CompatTopBar(titleText)
+                            } else {
+                                LargeTopAppBar(
+                                    title = {
+                                        // 主页显示 App 名（效果和 COUI 组件库首页那个大标题一致），
+                                        // 其余栏目显示自己的名字
+                                        Text(titleText, maxLines = 1)
+                                    },
+                                    // 40sp / semibold 与 COUI 组件库首页大标题（CouiTextKind.HomeTitle）完全一致
+                                    expandedTitleStyle = TextStyle(
+                                        fontSize = 40.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        letterSpacing = (-0.5).sp,
+                                    ),
+                                    // 收起后与 COUI 的 CouiTextKind.TopBar 一致：18sp / medium
+                                    collapsedTitleStyle = TextStyle(
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Medium,
+                                    ),
+                                    scrollBehavior = CouiTopAppBarDefaults.exitUntilCollapsedScrollBehavior(),
+                                    // 深色/浅色已移到左下角悬浮按钮，顶栏不再放操作项
+                                )
+                            }
                         },
                         bottomBar = {
                             BottomTabs(selected = tab, onSelect = { tab = it })
@@ -310,10 +320,31 @@ private sealed interface Route {
     data class AboutDetail(val page: AboutPage) : Route
 }
 
-/** 底部标签栏。API 34+ 用 COUI 原生 NavigationBar（ColorOS 浮动胶囊），低版本降级。 */
+/** 兼容模式的顶栏：不用 COUI 的折叠大标题，改成固定高度的一行 Text。 */
+@Composable
+private fun CompatTopBar(title: String) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(CouiTheme.colorScheme.background.copy(alpha = 0.96f))
+            .statusBarsPadding()
+            .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 12.dp),
+    ) {
+        Text(
+            title,
+            fontSize = 30.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = (-0.5).sp,
+            color = CouiTheme.colorScheme.onSurface,
+            maxLines = 1,
+        )
+    }
+}
+
+/** 底部标签栏。API 34+ 用 COUI 原生 NavigationBar（ColorOS 浮动胶囊），低版本或兼容模式降级。 */
 @Composable
 private fun BottomTabs(selected: Tab, onSelect: (Tab) -> Unit) {
-    if (Build.VERSION.SDK_INT >= 34) {
+    if (!com.picacg.coui.data.ApiConfigStore.compatMode && Build.VERSION.SDK_INT >= 34) {
         val items = Tab.entries.map { t ->
             CouiNavigationItem(
                 title = t.label,
@@ -441,24 +472,34 @@ internal val LocalDarkMode = androidx.compose.runtime.compositionLocalOf { false
  */
 @Composable
 private fun BackdropRoot(content: @Composable () -> Unit) {
-    if (Build.VERSION.SDK_INT < 31) {
+    // 31/32 上 COUI 的 backdrop 录制依赖的 GraphicsLayer 路径不稳，直接不用；
+    // 兼容模式也跳过，避免再次触发同一处崩溃。
+    if (com.picacg.coui.data.ApiConfigStore.compatMode || Build.VERSION.SDK_INT < 33) {
         content()
         return
     }
-    // 参数顺序：parent / diagnosticName / drawSource。
-    // drawSource 负责把「背景」录进 layer，后面的 drawCouiBackdrop 才有的可透。
-    val backdrop = rememberCouiBackdrop(
-        parent = null,
-        diagnosticName = "root",
-        drawSource = { drawContent() },
-    )
-    Box(
-        Modifier
-            .fillMaxSize()
-            .couiBackdrop(backdrop),
-    ) {
-        androidx.compose.runtime.CompositionLocalProvider(LocalBackdrop provides backdrop) {
-            ProvideCouiBackdrop(backdrop) { content() }
+    // 首帧约束可能还是 0×0，这时候去录 layer 会拿到位图尺寸非法的异常，
+    // 等真正有尺寸了再挂 backdrop。
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        if (constraints.maxWidth <= 0 || constraints.maxHeight <= 0) {
+            content()
+            return@BoxWithConstraints
+        }
+        // 参数顺序：parent / diagnosticName / drawSource。
+        // drawSource 负责把「背景」录进 layer，后面的 drawCouiBackdrop 才有的可透。
+        val backdrop = rememberCouiBackdrop(
+            parent = null,
+            diagnosticName = "root",
+            drawSource = { drawContent() },
+        )
+        Box(
+            Modifier
+                .fillMaxSize()
+                .couiBackdrop(backdrop),
+        ) {
+            androidx.compose.runtime.CompositionLocalProvider(LocalBackdrop provides backdrop) {
+                ProvideCouiBackdrop(backdrop) { content() }
+            }
         }
     }
 }
@@ -480,7 +521,7 @@ fun Modifier.couiGlass(
     val scheme = CouiTheme.colorScheme
     var m = this
     val backdrop = LocalBackdrop.current
-    if (Build.VERSION.SDK_INT >= 31 && backdrop != null) {
+    if (Build.VERSION.SDK_INT >= 33 && backdrop != null) {
         m = m.drawCouiBackdrop(
             backdrop = backdrop,
             shape = { shape },
@@ -511,7 +552,7 @@ fun Panel(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val shape = RoundedCornerShape(20.dp)
-    val shadowed = if (Build.VERSION.SDK_INT >= 34) {
+    val shadowed = if (!com.picacg.coui.data.ApiConfigStore.compatMode && Build.VERSION.SDK_INT >= 34) {
         modifier.fillMaxWidth().then(Modifier.couiShadowOf())
     } else {
         modifier.fillMaxWidth().shadow(6.dp, shape)

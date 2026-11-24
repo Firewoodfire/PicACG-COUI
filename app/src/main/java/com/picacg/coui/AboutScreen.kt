@@ -103,7 +103,7 @@ fun AboutScreen(
             InfoCard(
                 rows = listOf(
                     InfoRow("应用名", "PicACG", "COUI 版"),
-                    InfoRow("版本", "v14", BuildConfig.VERSION_NAME),
+                    InfoRow("版本", "v15", BuildConfig.VERSION_NAME),
                     InfoRow("样式参考", "ColorOS", "17"),
                 ),
             )

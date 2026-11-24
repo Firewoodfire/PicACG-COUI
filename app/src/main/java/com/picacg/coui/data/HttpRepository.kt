@@ -7,6 +7,9 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import java.util.UUID
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 
 /** 接口调用失败。message 直接展示在界面上，所以写成能看懂的中文。 */
 class ApiException(message: String) : Exception(message)
@@ -39,6 +42,13 @@ data class LoginResult(
 class HttpRepository(private val cfg: ApiConfig) : ContentRepository {
 
     /**
+     * 内置模式下「分类名 → 分类 id」的映射。
+     * 哔咔的分类筛选参数要的是 id（`?c=xxx`），而界面上显示的是中文名，
+     * 所以拉分类列表时顺手记下来，切分类时直接拿来用。
+     */
+    private val categoryIds = mutableMapOf<String, String>()
+
+    /**
      * 封面字段的候选名。不同后端的叫法差别很大（picacg 用 thumb，
      * 常见 CMS 用 cover / coverImage / poster），一次全试一遍比让用户手填字段名省事。
      */
@@ -67,9 +77,23 @@ class HttpRepository(private val cfg: ApiConfig) : ContentRepository {
      */
     override suspend fun homeByCategory(page: Int, category: String): FeedPage =
         withContext(Dispatchers.IO) {
-            val noFilter = category.isBlank() || category == "全部" ||
-                !cfg.homePath.contains("{category}")
+            val noFilter = category.isBlank() || category == "全部"
             if (noFilter) return@withContext home(page)
+
+            // 内置哔咔接口按分类 id 过滤，先把名字换成 id
+            if (cfg.builtin) {
+                val id = categoryIds[category]
+                val path = if (id != null) "/comics?c=$id&page={page}" else cfg.homePath
+                val body = request(path, mapOf("page" to page.toString()))
+                val (items, blocked) = applyBlock(parseList(body))
+                return@withContext FeedPage(
+                    items = items,
+                    hasMore = items.isNotEmpty(),
+                    blocked = blocked,
+                )
+            }
+
+            if (!cfg.homePath.contains("{category}")) return@withContext home(page)
 
             val body = request(
                 cfg.homePath,
@@ -87,7 +111,13 @@ class HttpRepository(private val cfg: ApiConfig) : ContentRepository {
             (0 until arr.length()).mapNotNull { i ->
                 when (val e = arr.opt(i)) {
                     is String -> e.takeIf { it.isNotBlank() }
-                    is JSONObject -> str(e, "name", "title", "label", "value")
+                    is JSONObject -> {
+                        val name = str(e, "name", "title", "label", "value")
+                        // 记下 id，后面按分类筛选时要用（哔咔是 ?c=<id>）
+                        val id = str(e, "_id", "id", "key", "categoryId")
+                        if (name != null && id != null) categoryIds[name] = id
+                        name
+                    }
                     else -> e?.toString()?.takeIf { it.isNotBlank() }
                 }
             }.distinct()
@@ -98,7 +128,14 @@ class HttpRepository(private val cfg: ApiConfig) : ContentRepository {
     }
 
     override suspend fun ranking(kind: String): List<CardItem> = withContext(Dispatchers.IO) {
-        val body = request(cfg.rankingPath, mapOf("kind" to kind))
+        // 内置哔咔接口的榜期参数是 H24 / D7 / D30，界面上用的是 day / week / month
+        val mapped = if (cfg.builtin) when (kind.lowercase()) {
+            "day" -> "H24"
+            "week" -> "D7"
+            "month" -> "D30"
+            else -> kind
+        } else kind
+        val body = request(cfg.rankingPath, mapOf("kind" to mapped))
         applyBlock(parseList(body)).first.mapIndexed { i, c ->
             if (c.badge.isBlank()) c.copy(badge = (i + 1).toString()) else c
         }
@@ -117,7 +154,7 @@ class HttpRepository(private val cfg: ApiConfig) : ContentRepository {
             ?: throw ApiException("详情接口返回的不是对象，请在设置里检查路径")
 
         val chaptersArr = findArrayByKeys(o, listOf("chapters", "eps", "episodes", "chapterList", "chapter_list"))
-        val chapters = if (chaptersArr != null) {
+        var chapters = if (chaptersArr != null) {
             (0 until chaptersArr.length()).mapNotNull { i ->
                 val c = chaptersArr.optJSONObject(i) ?: return@mapNotNull null
                 Chapter(
@@ -128,6 +165,11 @@ class HttpRepository(private val cfg: ApiConfig) : ContentRepository {
             }
         } else {
             emptyList()
+        }
+
+        // 哔咔的详情接口本身不带章节，章节在 /comics/{id}/eps 里，单独补一次
+        if (chapters.isEmpty() && cfg.builtin) {
+            chapters = runCatching { fetchEpisodes(id) }.getOrDefault(emptyList())
         }
 
         DetailItem(
@@ -173,6 +215,20 @@ class HttpRepository(private val cfg: ApiConfig) : ContentRepository {
         }
     }
 
+    /** 拉某一本漫画的章节列表（哔咔：/comics/{id}/eps）。失败不影响详情主体。 */
+    private fun fetchEpisodes(id: String): List<Chapter> {
+        val body = request("/comics/{id}/eps", mapOf("id" to id))
+        val arr = findArray(parseJson(body)) ?: return emptyList()
+        return (0 until arr.length()).mapNotNull { i ->
+            val c = arr.optJSONObject(i) ?: return@mapNotNull null
+            Chapter(
+                id = str(c, "_id", "id", "chapterId", "cid") ?: "c$i",
+                title = str(c, "title", "name", "chapterName") ?: "第 ${i + 1} 话",
+                pages = num(c, "pages", "pageCount", "page_count", "total") ?: 0,
+            )
+        }
+    }
+
     // ---------------------------------------------------------------- 登录
 
     /**
@@ -194,7 +250,8 @@ class HttpRepository(private val cfg: ApiConfig) : ContentRepository {
         try {
             val payload = JSONObject().apply {
                 put("email", account)
-                put("username", account)
+                // 哔咔只认 email，多塞字段会被判成参数错误；自定义接口才带上 username 兼容
+                if (!cfg.builtin) put("username", account)
                 put("password", password)
             }.toString()
             val body = postJson(cfg.loginPath, payload)
@@ -287,9 +344,7 @@ class HttpRepository(private val cfg: ApiConfig) : ContentRepository {
             connectTimeout = 12_000
             readTimeout = 15_000
             instanceFollowRedirects = true
-            setRequestProperty("Accept", "application/json, */*")
-            setRequestProperty("User-Agent", "COUI-Demo/1.0 (Android)")
-            applyAuth(this)
+            applyHeaders(this, "GET", url)
         }
         try {
             val code = conn.responseCode
@@ -309,12 +364,56 @@ class HttpRepository(private val cfg: ApiConfig) : ContentRepository {
         }
     }
 
-    /** GET 与 POST 共用的鉴权头。令牌原样发送还是加 Bearer 前缀，由设置在决定。 */
+    /**
+     * 请求头。
+     *
+     * 内置哔咔接口要求一套签名：把「路径 + 时间戳 + 随机串 + 方法 + api-key」
+     * 用 api-key 做 HMAC-SHA256，结果放进 signature 头。这是开源客户端公开的算法。
+     * 自定义接口走普通 JSON 头，不签名。
+     */
+    private fun applyHeaders(conn: HttpURLConnection, method: String, url: String) {
+        if (cfg.builtin) {
+            val path = runCatching { URL(url).path.ifBlank { "/" } }.getOrDefault("/")
+            val ts = (System.currentTimeMillis() / 1000).toString()
+            val nonce = UUID.randomUUID().toString().replace("-", "")
+            val sig = hmacSha256(path + ts + nonce + method + ApiConfig.PICACG_API_KEY)
+            conn.setRequestProperty("api-key", ApiConfig.PICACG_API_KEY)
+            conn.setRequestProperty("nonce", nonce)
+            conn.setRequestProperty("timestamp", ts)
+            conn.setRequestProperty("signature", sig)
+            conn.setRequestProperty("app-channel", "11")
+            conn.setRequestProperty("app-version", "2.2.1.3.3.4")
+            conn.setRequestProperty("app-build-version", "44")
+            conn.setRequestProperty(
+                "app-uuid",
+                DeviceId.value.ifBlank { "00000000-0000-0000-0000-000000000000" },
+            )
+            conn.setRequestProperty("app-platform", "android")
+            conn.setRequestProperty("app-mode", "3")
+            conn.setRequestProperty("app-source", "android-app")
+            conn.setRequestProperty("accept", "application/vnd.picacomic.com.v1+json")
+            conn.setRequestProperty("user-agent", "okhttp/3.12.0")
+        } else {
+            conn.setRequestProperty("Accept", "application/json, */*")
+            conn.setRequestProperty("User-Agent", "COUI-Demo/1.0 (Android)")
+        }
+        applyAuth(conn)
+    }
+
+    /** 用 api-key 做 HMAC-SHA256，输出小写十六进制。 */
+    private fun hmacSha256(data: String): String {
+        val mac = Mac.getInstance("HmacSHA256")
+        mac.init(SecretKeySpec(ApiConfig.PICACG_API_KEY.toByteArray(Charsets.UTF_8), "HmacSHA256"))
+        return mac.doFinal(data.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+    }
+
+    /** GET 与 POST 共用的鉴权头。令牌原样发送还是加 Bearer 前缀，由设置决定。 */
     private fun applyAuth(conn: HttpURLConnection) {
         val t = cfg.token.trim()
         if (t.isEmpty()) return
         val authValue = when {
-            cfg.tokenRaw -> t
+            cfg.tokenRaw || cfg.builtin -> t
             t.contains(' ') -> t
             else -> "Bearer $t"
         }
@@ -334,10 +433,8 @@ class HttpRepository(private val cfg: ApiConfig) : ContentRepository {
             readTimeout = 15_000
             instanceFollowRedirects = true
             doOutput = true
-            setRequestProperty("Accept", "application/json, */*")
             setRequestProperty("Content-Type", "application/json; charset=utf-8")
-            setRequestProperty("User-Agent", "COUI-Demo/1.0 (Android)")
-            applyAuth(this)
+            applyHeaders(this, "POST", url)
         }
         try {
             conn.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }

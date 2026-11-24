@@ -149,15 +149,22 @@ fun SettingsScreen(onBack: () -> Unit, onOpenAbout: () -> Unit = {}) {
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
                             Text(
-                                if (draft.enabled) "当前使用：自定义接口" else "当前使用：内置示例数据",
+                                when {
+                                    draft.builtin -> "当前使用：内置哔咔接口"
+                                    draft.enabled -> "当前使用：自定义接口"
+                                    else -> "当前使用：示例数据"
+                                },
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = scheme.onSurface,
                             )
                             Spacer(Modifier.height(3.dp))
                             Text(
-                                if (draft.baseUrl.isBlank()) "填写下方接口地址即可接入你自己的服务"
-                                else draft.baseUrl,
+                                when {
+                                    draft.builtin -> "picaapi.picacomic.com · 签名与路径已内置，登录即可用"
+                                    draft.baseUrl.isBlank() -> "填写下方接口地址即可接入你自己的服务"
+                                    else -> draft.baseUrl
+                                },
                                 fontSize = 12.sp,
                                 color = scheme.onSurfaceVariant,
                             )
@@ -165,25 +172,73 @@ fun SettingsScreen(onBack: () -> Unit, onOpenAbout: () -> Unit = {}) {
                     }
                 }
 
-                // 开关
-                SettingsSection("数据源开关") {
+                // 接口来源
+                SettingsSection("接口来源") {
                     Row(
                         Modifier.fillMaxWidth().padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Column(Modifier.weight(1f)) {
-                            Text("使用自定义接口", fontSize = 15.sp, color = scheme.onSurface)
+                            Text("使用内置哔咔接口", fontSize = 15.sp, color = scheme.onSurface)
                             Spacer(Modifier.height(3.dp))
                             Text(
-                                "关闭后立即回到示例数据，地址会保留",
+                                "地址、签名和全部接口路径都已内置，登录后直接用，不用自己填",
                                 fontSize = 12.sp,
                                 color = scheme.onSurfaceVariant,
+                                lineHeight = 17.sp,
                             )
                         }
                         Spacer(Modifier.width(10.dp))
                         Switch(
-                            checked = draft.useCustom,
-                            onCheckedChange = { v -> edit { it.copy(useCustom = v) } },
+                            checked = draft.builtin,
+                            onCheckedChange = { v ->
+                                edit { it.copy(builtin = v, baseUrl = if (v) "" else it.baseUrl) }
+                            },
+                            dark = LocalDarkMode.current,
+                        )
+                    }
+                    if (!draft.builtin) {
+                        Spacer(Modifier.height(16.dp))
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text("启用自定义接口", fontSize = 15.sp, color = scheme.onSurface)
+                                Spacer(Modifier.height(3.dp))
+                                Text(
+                                    "关闭后立即回到示例数据，地址会保留",
+                                    fontSize = 12.sp,
+                                    color = scheme.onSurfaceVariant,
+                                )
+                            }
+                            Spacer(Modifier.width(10.dp))
+                            Switch(
+                                checked = draft.useCustom,
+                                onCheckedChange = { v -> edit { it.copy(useCustom = v) } },
+                                dark = LocalDarkMode.current,
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(14.dp))
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text("兼容模式", fontSize = 15.sp, color = scheme.onSurface)
+                            Spacer(Modifier.height(3.dp))
+                            Text(
+                                "关闭背景模糊与 COUI 顶栏/浮动底栏。启动闪退时自动打开",
+                                fontSize = 12.sp,
+                                color = scheme.onSurfaceVariant,
+                                lineHeight = 17.sp,
+                            )
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Switch(
+                            checked = com.picacg.coui.data.ApiConfigStore.compatMode,
+                            onCheckedChange = { com.picacg.coui.data.ApiConfigStore.applyCompat(it) },
                             dark = LocalDarkMode.current,
                         )
                     }
@@ -192,8 +247,11 @@ fun SettingsScreen(onBack: () -> Unit, onOpenAbout: () -> Unit = {}) {
                 // 账号登录
                 SettingsSection("账号登录") {
                     Text(
-                        "填账号密码，点登录自动换取令牌。密码只在登录时用一次，" +
-                            "不会保存到本地，也不会写进任何日志。",
+                        if (draft.builtin) {
+                            "用哔咔账号登录。密码只在登录时用一次，不保存；登录成功后令牌会存到本地，之后各页面自动带上。"
+                        } else {
+                            "填账号密码，点登录自动换取令牌。密码只在登录时用一次，不会保存到本地，也不会写进任何日志。"
+                        },
                         fontSize = 11.sp,
                         color = scheme.onSurfaceVariant,
                         lineHeight = 16.sp,
@@ -215,13 +273,15 @@ fun SettingsScreen(onBack: () -> Unit, onOpenAbout: () -> Unit = {}) {
                         isPassword = true,
                         onValueChange = { password = it },
                     )
-                    Spacer(Modifier.height(14.dp))
-                    CouiField(
-                        label = "登录接口路径",
-                        value = draft.loginPath,
-                        placeholder = "/auth/signin",
-                        onValueChange = { v -> edit { it.copy(loginPath = v) } },
-                    )
+                    if (!draft.builtin) {
+                        Spacer(Modifier.height(14.dp))
+                        CouiField(
+                            label = "登录接口路径",
+                            value = draft.loginPath,
+                            placeholder = "/auth/signin",
+                            onValueChange = { v -> edit { it.copy(loginPath = v) } },
+                        )
+                    }
                     Spacer(Modifier.height(16.dp))
 
                     Row(
@@ -233,14 +293,14 @@ fun SettingsScreen(onBack: () -> Unit, onOpenAbout: () -> Unit = {}) {
                             text = "登录",
                             primary = true,
                             loading = loggingIn,
-                            enabled = draft.baseUrl.isNotBlank(),
+                            enabled = draft.enabled,
                             modifier = Modifier.weight(1f),
                         ) {
                             scope.launch {
                                 loggingIn = true
                                 loginResult = null
-                                val r = if (draft.baseUrl.isBlank()) {
-                                    LoginResult(false, "请先填写接口根地址", "", "", "")
+                                val r = if (!draft.enabled) {
+                                    LoginResult(false, "请先填写接口根地址，或打开内置接口", "", "", "")
                                 } else {
                                     runCatching { HttpRepository(draft).login(draft.account, password) }
                                         .getOrElse { LoginResult(false, it.message ?: "未知错误", "", "", "") }
@@ -302,14 +362,16 @@ fun SettingsScreen(onBack: () -> Unit, onOpenAbout: () -> Unit = {}) {
 
                 // 地址与令牌
                 SettingsSection("服务地址") {
-                    CouiField(
-                        label = "接口根地址",
-                        value = draft.baseUrl,
-                        placeholder = "https://api.example.com",
-                        keyboardType = KeyboardType.Uri,
-                        onValueChange = { v -> edit { it.copy(baseUrl = v) } },
-                    )
-                    Spacer(Modifier.height(14.dp))
+                    if (!draft.builtin) {
+                        CouiField(
+                            label = "接口根地址",
+                            value = draft.baseUrl,
+                            placeholder = "https://api.example.com",
+                            keyboardType = KeyboardType.Uri,
+                            onValueChange = { v -> edit { it.copy(baseUrl = v) } },
+                        )
+                        Spacer(Modifier.height(14.dp))
+                    }
                     CouiField(
                         label = "访问令牌（登录后自动填入，也可手动填）",
                         value = draft.token,
@@ -317,35 +379,44 @@ fun SettingsScreen(onBack: () -> Unit, onOpenAbout: () -> Unit = {}) {
                         onValueChange = { v -> edit { it.copy(token = v) } },
                     )
                     Spacer(Modifier.height(14.dp))
-                    Row(
-                        Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text("令牌原样发送", fontSize = 15.sp, color = scheme.onSurface)
-                            Spacer(Modifier.height(3.dp))
-                            Text(
-                                "不加 Bearer 前缀。多数自建接口和 picacg 这类接口需要打开",
-                                fontSize = 12.sp,
-                                color = scheme.onSurfaceVariant,
+                    if (draft.builtin) {
+                        Text(
+                            "令牌会写入 Authorization 与 token 两个请求头，内置接口要求原样发送。",
+                            fontSize = 11.sp,
+                            color = scheme.onSurfaceVariant,
+                        )
+                    } else {
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text("令牌原样发送", fontSize = 15.sp, color = scheme.onSurface)
+                                Spacer(Modifier.height(3.dp))
+                                Text(
+                                    "不加 Bearer 前缀。多数自建接口和 picacg 这类接口需要打开",
+                                    fontSize = 12.sp,
+                                    color = scheme.onSurfaceVariant,
+                                )
+                            }
+                            Spacer(Modifier.width(10.dp))
+                            Switch(
+                                checked = draft.tokenRaw,
+                                onCheckedChange = { v -> edit { it.copy(tokenRaw = v) } },
+                                dark = LocalDarkMode.current,
                             )
                         }
-                        Spacer(Modifier.width(10.dp))
-                        Switch(
-                            checked = draft.tokenRaw,
-                            onCheckedChange = { v -> edit { it.copy(tokenRaw = v) } },
-                            dark = LocalDarkMode.current,
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            "令牌会同时写入 Authorization 与 token 两个请求头。",
+                            fontSize = 11.sp,
+                            color = scheme.onSurfaceVariant,
                         )
                     }
-                    Spacer(Modifier.height(10.dp))
-                    Text(
-                        "令牌会同时写入 Authorization 与 token 两个请求头。",
-                        fontSize = 11.sp,
-                        color = scheme.onSurfaceVariant,
-                    )
                 }
 
-                // 路径
+                // 路径（内置模式已写死，不显示）
+                if (!draft.builtin) {
                 SettingsSection("接口路径") {
                     Text(
                         "相对路径会自动拼在根地址后面。占位符：{page} {id} {keyword} {kind}，不用的可以留空。",
@@ -394,6 +465,7 @@ fun SettingsScreen(onBack: () -> Unit, onOpenAbout: () -> Unit = {}) {
                         placeholder = "/api/announcements",
                         onValueChange = { v -> edit { it.copy(announcementsPath = v) } },
                     )
+                }
                 }
 
                 // 屏蔽设定
@@ -496,7 +568,11 @@ fun SettingsScreen(onBack: () -> Unit, onOpenAbout: () -> Unit = {}) {
                     ) {
                         ApiConfigStore.saveAndApply(draft)
                         applied = draft
-                        hint = if (draft.enabled) "已生效，正在使用自定义接口" else "已生效，正在使用示例数据"
+                        hint = when {
+                            draft.builtin -> "已生效，正在使用内置哔咔接口"
+                            draft.enabled -> "已生效，正在使用自定义接口"
+                            else -> "已生效，正在使用示例数据"
+                        }
                     }
                     CouiButton(
                         text = "测试连接",
@@ -507,8 +583,8 @@ fun SettingsScreen(onBack: () -> Unit, onOpenAbout: () -> Unit = {}) {
                         scope.launch {
                             probing = true
                             result = null
-                            result = if (draft.baseUrl.isBlank()) {
-                                ProbeResult(false, "请先填写接口根地址", "", "")
+                            result = if (!draft.enabled) {
+                                ProbeResult(false, "请先打开内置接口或填写接口根地址", "", "")
                             } else {
                                 runCatching { HttpRepository(draft).probe() }
                                     .getOrElse { ProbeResult(false, it.message ?: "未知错误", "", "") }

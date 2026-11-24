@@ -6,61 +6,99 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import java.util.UUID
 
 /**
- * 接口配置。全部字段都在 App 的设置页里可改，改完点「保存并生效」即生效，不需要改代码重新编译。
+ * 接口配置。
  *
- * [baseUrl] 为空表示不启用自定义接口，App 会用内置的示例数据。
+ * 默认走「内置哔咔接口」：地址、路径、请求签名都由 App 自己带好，
+ * 用户只需要登录，不用再手填一堆路径。
+ * 需要接自己的后端时，在设置里关掉内置开关，填地址即可。
  */
 data class ApiConfig(
-    /** 是否启用自定义接口。关闭后即使填了地址也用示例数据。 */
+    /** 是否使用内置哔咔接口（picaapi）。默认开启。 */
+    val builtin: Boolean = true,
+    /** 是否启用自定义接口。仅在内置关闭时有效。 */
     val useCustom: Boolean = true,
-    /** 接口根地址，例如 https://api.example.com 。留空则使用示例数据。 */
+    /** 接口根地址。内置模式下由 [PICACG_BASE] 提供，这里留空即可。 */
     val baseUrl: String = "",
-    /** 访问令牌，可留空。登录成功后会自动填入这里。 */
+    /** 访问令牌，登录成功后自动填入。 */
     val token: String = "",
-    /** Authorization 头是否原样发送 token（不加 Bearer 前缀）。大多数自建接口需要勾上。 */
-    val tokenRaw: Boolean = false,
-    /** 登录接口路径。账号密码会 POST 到这里换取 token。 */
-    val loginPath: String = "/auth/signin",
-    /** 上次登录用的账号，仅用于回填输入框，不保存密码。 */
+    /** Authorization 头是否原样发送 token（不加 Bearer 前缀）。 */
+    val tokenRaw: Boolean = true,
+    /** 登录接口路径。 */
+    val loginPath: String = "/auth/sign-in",
+    /** 上次登录用的账号，仅用于回填输入框。 */
     val account: String = "",
     /** 首页信息流。{page} 会替换为页码。 */
-    val homePath: String = "/api/home?page={page}",
+    val homePath: String = "/comics?page={page}",
     /** 分类列表。 */
-    val categoriesPath: String = "/api/categories",
-    /** 排行榜。{kind} 会替换为 day / week / month。 */
-    val rankingPath: String = "/api/ranking?type={kind}",
+    val categoriesPath: String = "/categories",
+    /** 排行榜。{kind} 会替换为 day / week / month（内置模式会自动映射成 H24 / D7 / D30）。 */
+    val rankingPath: String = "/comics/leaderboard?tt={kind}",
     /** 搜索。{keyword} 会替换为关键词。 */
-    val searchPath: String = "/api/search?q={keyword}",
+    val searchPath: String = "/comics/search?keyword={keyword}",
     /** 详情。{id} 会替换为条目 id。 */
-    val detailPath: String = "/api/detail/{id}",
+    val detailPath: String = "/comics/{id}",
     /** 公告列表。 */
-    val announcementsPath: String = "/api/announcements",
+    val announcementsPath: String = "/announcements",
     /** 屏蔽规则，见 [BlockRules]。 */
     val block: BlockRules = BlockRules(),
 ) {
-    /** 开关打开且填了根地址，才算真正接入接口。 */
-    val enabled: Boolean get() = useCustom && baseUrl.isNotBlank()
+    /** 内置接口永远可用；自定义接口要有根地址。 */
+    val enabled: Boolean get() = builtin || (useCustom && baseUrl.isNotBlank())
 
-    /** 拼出完整 URL，相对路径会自动接在 baseUrl 后面。 */
+    /** 当前实际使用的根地址。 */
+    val effectiveBase: String
+        get() = if (builtin) PICACG_BASE else baseUrl.trim().trimEnd('/')
+
+    /** 拼出完整 URL，相对路径会自动接在根地址后面。 */
     fun absoluteUrl(path: String): String {
         val p = path.trim()
         if (p.startsWith("http://") || p.startsWith("https://")) return p
-        val base = baseUrl.trim().trimEnd('/')
+        val base = effectiveBase
         if (p.isEmpty()) return base
         return base + "/" + p.trimStart('/')
     }
 
     companion object {
-        val DEFAULT = ApiConfig()
+        /** 哔咔官方接口，和 picacg 各开源客户端用的是同一个。 */
+        const val PICACG_BASE = "https://picaapi.picacomic.com"
+
+        /** 开源客户端里公开的 api-key，用于请求签名，不是账号凭据。 */
+        const val PICACG_API_KEY = "C69BAF41DA5ABD1FFEDC6D2F1E56A92A"
+
+        val PICACG = ApiConfig(builtin = true)
+
+        val DEFAULT = PICACG
     }
 }
 
 /**
- * 全局配置仓库。用 SharedPreferences 持久化，同时暴露成 Compose 状态，界面能直接观察。
- *
- * 需要在 Application/Activity 启动时调用一次 [init]。
+ * 设备标识。哔咔接口要求每个客户端带一个稳定的 app-uuid，
+ * 首次启动生成一次后落盘，之后一直复用。
+ */
+object DeviceId {
+    var value: String = ""
+        private set
+
+    fun init(sp: SharedPreferences) {
+        val saved = sp.getString(KEY, null)
+        if (!saved.isNullOrBlank()) {
+            value = saved
+            return
+        }
+        val id = UUID.randomUUID().toString()
+        value = id
+        sp.edit().putString(KEY, id).apply()
+    }
+
+    private const val KEY = "device_uuid"
+}
+
+/**
+ * 全局配置仓库。用 SharedPreferences 持久化，同时暴露成 Compose 状态。
+ * 需要在 Activity 启动时调用一次 [init]。
  */
 object ApiConfigStore {
 
@@ -68,48 +106,56 @@ object ApiConfigStore {
 
     private var prefs: SharedPreferences? = null
 
-    /** 当前配置。界面可直接读取，值变化会自动触发重组。 */
     var config by mutableStateOf(ApiConfig())
         private set
 
-    /**
-     * 配置版本号。每次点「保存并生效」自增，数据页用它作为 LaunchedEffect 的 key，
-     * 从而自动重新拉取数据。
-     */
     var version by mutableIntStateOf(0)
         private set
 
-    /**
-     * 当前的深浅色选择。以前是界面里的一个 remember，退出再进来就回浅色；
-     * 放在这里跟接口配置一起落盘，重启后保持上一次的选择。
-     */
     var darkMode by mutableStateOf(false)
         private set
 
-    /** 切换深浅色并立即落盘。 */
+    /**
+     * 兼容模式：关闭背景模糊、COUI 顶栏/底栏等自定义绘制，
+     * 用于某些 ROM 上一进就闪退的兜底。启动检测到上次崩溃会自动打开。
+     */
+    var compatMode by mutableStateOf(false)
+        private set
+
     fun applyDark(value: Boolean) {
         darkMode = value
         prefs?.edit()?.putBoolean(KEY_DARK, value)?.apply()
+    }
+
+    fun applyCompat(value: Boolean) {
+        compatMode = value
+        prefs?.edit()?.putBoolean(KEY_COMPAT, value)?.apply()
     }
 
     fun init(context: Context) {
         if (prefs != null) return
         val sp = context.applicationContext.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
         prefs = sp
+        DeviceId.init(sp)
         darkMode = sp.getBoolean(KEY_DARK, false)
+        compatMode = sp.getBoolean(KEY_COMPAT, false)
+
+        val builtin = sp.getBoolean(KEY_BUILTIN, true)
+        val d = ApiConfig.PICACG
         config = ApiConfig(
+            builtin = builtin,
             useCustom = sp.getBoolean(KEY_USE_CUSTOM, true),
-            baseUrl = sp.getString(KEY_BASE, "") ?: "",
+            baseUrl = if (builtin) "" else (sp.getString(KEY_BASE, "") ?: ""),
             token = sp.getString(KEY_TOKEN, "") ?: "",
-            tokenRaw = sp.getBoolean(KEY_TOKEN_RAW, false),
-            loginPath = sp.getString(KEY_LOGIN, ApiConfig.DEFAULT.loginPath) ?: ApiConfig.DEFAULT.loginPath,
+            tokenRaw = sp.getBoolean(KEY_TOKEN_RAW, true),
+            loginPath = pathOf(sp, KEY_LOGIN, d.loginPath, builtin),
             account = sp.getString(KEY_ACCOUNT, "") ?: "",
-            homePath = sp.getString(KEY_HOME, ApiConfig.DEFAULT.homePath) ?: ApiConfig.DEFAULT.homePath,
-            categoriesPath = sp.getString(KEY_CATS, ApiConfig.DEFAULT.categoriesPath) ?: ApiConfig.DEFAULT.categoriesPath,
-            rankingPath = sp.getString(KEY_RANK, ApiConfig.DEFAULT.rankingPath) ?: ApiConfig.DEFAULT.rankingPath,
-            searchPath = sp.getString(KEY_SEARCH, ApiConfig.DEFAULT.searchPath) ?: ApiConfig.DEFAULT.searchPath,
-            detailPath = sp.getString(KEY_DETAIL, ApiConfig.DEFAULT.detailPath) ?: ApiConfig.DEFAULT.detailPath,
-            announcementsPath = sp.getString(KEY_NOTICE, ApiConfig.DEFAULT.announcementsPath) ?: ApiConfig.DEFAULT.announcementsPath,
+            homePath = pathOf(sp, KEY_HOME, d.homePath, builtin),
+            categoriesPath = pathOf(sp, KEY_CATS, d.categoriesPath, builtin),
+            rankingPath = pathOf(sp, KEY_RANK, d.rankingPath, builtin),
+            searchPath = pathOf(sp, KEY_SEARCH, d.searchPath, builtin),
+            detailPath = pathOf(sp, KEY_DETAIL, d.detailPath, builtin),
+            announcementsPath = pathOf(sp, KEY_NOTICE, d.announcementsPath, builtin),
             block = BlockRules(
                 enabled = sp.getBoolean(KEY_BLOCK_ON, false),
                 raw = sp.getString(KEY_BLOCK_RAW, BlockRules.SAMPLE) ?: BlockRules.SAMPLE,
@@ -117,33 +163,38 @@ object ApiConfigStore {
         )
     }
 
-    /** 写入配置并落盘。不会触发数据重载，重载由 [applyNow] 负责。 */
+    /** 内置模式用代码里的路径；自定义模式读本地保存的值。 */
+    private fun pathOf(sp: SharedPreferences, key: String, fallback: String, builtin: Boolean): String =
+        if (builtin) fallback else (sp.getString(key, fallback) ?: fallback)
+
     fun save(next: ApiConfig) {
         config = next
-        prefs?.edit()
+        val e = prefs?.edit()
+            ?.putBoolean(KEY_BUILTIN, next.builtin)
             ?.putBoolean(KEY_USE_CUSTOM, next.useCustom)
-            ?.putString(KEY_BASE, next.baseUrl.trim())
+            ?.putString(KEY_BASE, if (next.builtin) "" else next.baseUrl.trim())
             ?.putString(KEY_TOKEN, next.token.trim())
             ?.putBoolean(KEY_TOKEN_RAW, next.tokenRaw)
             ?.putString(KEY_LOGIN, next.loginPath)
             ?.putString(KEY_ACCOUNT, next.account.trim())
-            ?.putString(KEY_HOME, next.homePath)
-            ?.putString(KEY_CATS, next.categoriesPath)
-            ?.putString(KEY_RANK, next.rankingPath)
-            ?.putString(KEY_SEARCH, next.searchPath)
-            ?.putString(KEY_DETAIL, next.detailPath)
-            ?.putString(KEY_NOTICE, next.announcementsPath)
             ?.putBoolean(KEY_BLOCK_ON, next.block.enabled)
             ?.putString(KEY_BLOCK_RAW, next.block.raw)
-            ?.apply()
+        // 内置模式下不覆盖自定义路径，方便随时切回去
+        if (!next.builtin) {
+            e?.putString(KEY_HOME, next.homePath)
+                ?.putString(KEY_CATS, next.categoriesPath)
+                ?.putString(KEY_RANK, next.rankingPath)
+                ?.putString(KEY_SEARCH, next.searchPath)
+                ?.putString(KEY_DETAIL, next.detailPath)
+                ?.putString(KEY_NOTICE, next.announcementsPath)
+        }
+        e?.apply()
     }
 
-    /** 让所有数据页重新加载。 */
     fun applyNow() {
         version++
     }
 
-    /** 保存并立即生效。 */
     fun saveAndApply(next: ApiConfig) {
         save(next)
         applyNow()
@@ -154,6 +205,7 @@ object ApiConfigStore {
         prefs?.edit()?.clear()?.apply()
     }
 
+    private const val KEY_BUILTIN = "use_builtin"
     private const val KEY_USE_CUSTOM = "use_custom"
     private const val KEY_BASE = "base_url"
     private const val KEY_TOKEN = "token"
@@ -169,4 +221,5 @@ object ApiConfigStore {
     private const val KEY_BLOCK_ON = "block_enabled"
     private const val KEY_BLOCK_RAW = "block_raw"
     private const val KEY_DARK = "dark_mode"
+    private const val KEY_COMPAT = "compat_mode"
 }

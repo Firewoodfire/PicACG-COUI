@@ -274,14 +274,19 @@ private fun CategoryRow(
     onSelect: (String) -> Unit,
 ) {
     val backdrop = LocalBackdrop.current
-    if (backdrop != null) {
+    // 分类是异步拉的：首帧 cats 还是空的时候，ChipTabRow 会因
+    // 「选中项不属于当前列表」直接抛 require 异常（一点开就闪退的真凶）。
+    // 空列表先走下面的普通 Row，等分类回来再换回胶囊行。
+    if (backdrop != null && cats.isNotEmpty()) {
         val chipItems = remember(cats) { cats.map { CouiChipTabItem(key = it, label = it) } }
+        // 选中的分类如果不在新列表里，传 null 让组件自己兜住，也不崩
+        val safeKey = chipItems.firstOrNull { it.key == selected }?.key
         ChipTabRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
             items = chipItems,
-            selectedKey = selected,
+            selectedKey = safeKey,
             onSelectedKeyChange = { onSelect(it.toString()) },
             backdrop = backdrop,
             dark = LocalDarkMode.current,
