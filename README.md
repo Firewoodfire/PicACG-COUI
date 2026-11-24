@@ -255,14 +255,12 @@ PicACG-COUI-Source.zip，解压后用 Android Studio 打开 coui/ 目录。
 
 
 十一、GitHub 上传状态（已完成，2026-11-25）
-------------------------------------------
+-------------------------------------------
 1. 源码仓库：https://github.com/Firewoodfire/PicACG-COUI
-   main 分支已推送 v1.4.0 完整源码，后续 README 状态更新也已提交。
-2. Release：https://github.com/Firewoodfire/PicACG-COUI/releases/tag/v1.4.0
-   已上传 PicACG-COUI.apk，资产大小 27,905,455 字节。
-3. GitHub 记录的资产 SHA256 为
-   3fd7a13ca9b6c3ad3aebf0610c351465a3337224bb02c08047e82870a73535ff，
-   与本地 APK 完全一致。
-4. 应用内「设置 → 关于 → 软件版本」会读取该仓库最新 Release 的标签和说明；
-   Release 发布后即可正常检查更新。
-5. 不需要重新编译：交付的 APK 已内置仓库地址和更新检查逻辑。
+   main 分支为 v1.4.1 完整源码。
+2. Release：https://github.com/Firewoodfire/PicACG-COUI/releases/tag/v1.4.1
+   资产 PicACG-COUI.apk，27,921,839 字节。
+3. 资产 SHA256：
+   6ab6746cf05338d904fd410d1ad33291a06988365e32027bc6001a51c2604bf2，与本地 APK 一致。
+4. 应用内「设置 → 关于 → 软件版本」读取该仓库最新 Release 的标签与说明。
+5. 发布约定：Release 说明只写简介 + 3~4 条本版要点，详细记录放 CHANGELOG.md。
