@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -289,4 +291,39 @@ val ChevronIcon: ImageVector by lazy {
             lineTo(9.5f, 18.5f)
         }
     }.build()
+}
+
+/**
+ * 列表行卡片：分类、搜索、排行共用。
+ *
+ * 和 Group 的区别是它没有分组语义，左右各留 16dp 与分组卡片对齐，
+ * 圆角与底色跟 Group 一致，所以列表页和设置页看起来是一套东西。
+ * 点击反馈走 [couiButtonFeedback]，按下有轻微缩放。
+ */
+@Composable
+fun CouiRowCard(
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val source = remember { MutableInteractionSource() }
+    val dark = LocalDarkMode.current
+    Column(
+        modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(CouiTheme.colorScheme.container.copy(alpha = 0.6f))
+            .then(
+                if (onClick != null) {
+                    Modifier
+                        .couiButtonFeedback(dark, source, true, list = true)
+                        .clickable(source, null, onClick = onClick)
+                } else {
+                    Modifier
+                }
+            )
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        content = content,
+    )
 }

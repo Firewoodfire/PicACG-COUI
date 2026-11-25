@@ -69,11 +69,7 @@ import com.itos.coui.dialog.CouiDialogActionStyle
 import com.itos.coui.dialog.CouiDialogDefaults
 import com.itos.coui.dialog.Dialog
 import com.itos.coui.scroll.rememberCouiOverscrollEffect
-import com.itos.coui.layout.Group
-import com.itos.coui.layout.Item
 import com.itos.coui.segmentbutton.SegmentedControl
-import com.itos.coui.text.CouiTextKind
-import com.itos.coui.text.Text as CouiText
 import com.itos.coui.theme.CouiTheme
 
 /**
@@ -252,7 +248,7 @@ fun HomeScreen(onOpen: (String) -> Unit) {
                         }
                     }
                 }
-                items(items, key = { it.id }) { item ->
+                items(items) { item ->
                     PosterCard(item = item, onClick = { onOpen(item.id) })
                 }
                 // 底部状态：加载中 / 到底了。两种都不占高度时给个小间隔
@@ -395,7 +391,7 @@ private fun SearchResults(
                 blockedTag?.let { tag ->
                     item { BlockedTagTip(tag = tag, onUndo = onUndoBlock) }
                 }
-                items(items, key = { it.id }) { item ->
+                items(items) { item ->
                     ItemRow(
                         item = item,
                         onClick = { onOpen(item.id) },
@@ -852,7 +848,7 @@ fun CategoryScreen(onOpen: (String) -> Unit) {
                         reload++
                     }) }
                 }
-                items(items, key = { it.id }) { item ->
+                items(items) { item ->
                     ItemRow(
                         item = item,
                         onClick = { onOpen(item.id) },
@@ -898,9 +894,8 @@ fun ItemRow(
     leading: (@Composable () -> Unit)? = null,
     onBlockTag: ((String) -> Unit)? = null,
 ) {
-    Group {
-        Item(onClick = onClick) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+    CouiRowCard(onClick = onClick) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
                 leading?.let {
                     it()
                     Spacer(Modifier.width(8.dp))
@@ -945,7 +940,6 @@ fun ItemRow(
                     }
                 }
             }
-        }
     }
 }
 
@@ -971,10 +965,16 @@ fun RankingScreen(onOpen: (String) -> Unit) {
         loading = true
         error = null
         blockedTag = null
-        // 排行接口自己会过滤，这里再兜一次底，保证 FakeRepository 也遵守规则
-        val r = runCatching { AppContainer.repository().ranking(kind) }
-        error = r.exceptionOrNull()?.message
-        items = AppContainer.filter(r.getOrDefault(emptyList())).first
+        // 整段都包进 runCatching：以前只包了请求，filter 抛异常会直接把进程带走
+        val r = runCatching {
+            val raw = AppContainer.repository().ranking(kind)
+            AppContainer.filter(raw).first
+        }
+        r.onSuccess { items = it }
+        r.onFailure {
+            items = emptyList()
+            error = it.message ?: it::class.java.simpleName
+        }
         loading = false
     }
 
@@ -1006,10 +1006,11 @@ fun RankingScreen(onOpen: (String) -> Unit) {
                 .heightIn(min = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            CouiText(
-                text = "${RANK_KINDS[kindIndex].second} · ${items.size} 部",
-                kind = CouiTextKind.GroupTitle,
+            Text(
+                "${RANK_KINDS[kindIndex].second} · ${items.size} 部",
+                fontSize = 12.sp,
                 color = CouiTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
             )
         }
 
@@ -1032,7 +1033,7 @@ fun RankingScreen(onOpen: (String) -> Unit) {
                         reload++
                     }) }
                 }
-                items(items, key = { it.id }) { item ->
+                items(items) { item ->
                     val rank = item.badge.toIntOrNull() ?: 0
                     ItemRow(
                         item = item,
@@ -1107,10 +1108,8 @@ fun NoticeScreen() {
             contentPadding = PaddingValues(bottom = 108.dp),
             overscrollEffect = overscroll,
         ) {
-            items(list, key = { it.id }) { a ->
-                Group {
-                    CouiGroupBody {
-                        Column {
+            items(list) { a ->
+                CouiRowCard {
                             Text(
                                 a.title,
                                 fontSize = 16.sp,
@@ -1131,8 +1130,6 @@ fun NoticeScreen() {
                                     lineHeight = 21.sp,
                                 )
                             }
-                        }
-                    }
                 }
             }
         }

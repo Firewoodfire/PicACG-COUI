@@ -121,9 +121,10 @@ private fun App() {
     CouiTheme(darkTheme = dark) {
         var tab by remember { mutableStateOf(Tab.Home) }
         var route by remember { mutableStateOf<Route?>(null) }
-        // API 34+ 把深浅色与设置做成底栏两侧的圆形附件，和 ColorOS 原厂底栏一致；
-        // 低版本或兼容模式仍用两个独立悬浮钮兜底。
-        val dockActions = !compat && Build.VERSION.SDK_INT >= 34
+        // 底栏左右附件（CouiNavigationBarAction）要 coui alpha15 才有，
+        // 当前依赖锁在 alpha14，所以这条路先关掉，统一用两个悬浮钮。
+        // 之前这里开着但附件没画出来，导致 API 34+ 的设置和深浅色入口一起消失。
+        val dockActions = false
 
         androidx.compose.runtime.CompositionLocalProvider(LocalDarkMode provides dark) {
         // 窗口是透明的（见 res/values/themes.xml），这里自己铺一层实色底，

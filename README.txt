@@ -1,18 +1,24 @@
 PicACG COUI — ColorOS 17 风格应用骨架（支持 App 内配置接口）
 ================================================================
 
-版本：v17 / 1.5.0（versionCode 17，2026-11-25）
+版本：v18 / 1.5.1（versionCode 18，2026-11-25）
 应用名：PicACG COUI
 包名：com.picacg.coui
 系统要求：Android 12（API 31）及以上
 APK 大小：27,954,607 字节（26.7 MB）
-SHA256：b63a846126d1a846fa0e17d0a4328602505f635b4e68be052164b8761355e8e3
+SHA256：7cceb9eba784c1aa7ab7c5ec38989414f4669518c84a4494c89e0de3a0349941
 源码仓库：https://github.com/Firewoodfire/PicACG-COUI
 发布页面：https://github.com/Firewoodfire/PicACG-COUI/releases
 
 
 一、这一版改了什么
 ------------------
+【v1.5.1 / v18】
+1. 修复设置入口消失：底栏附件没画出来，把两个悬浮钮也一起藏了，现在恢复右下角齿轮。
+2. 排行页不再闪退：列表行改回带底色的圆角卡片，去掉 LazyColumn 的重复 key。
+3. 分类、搜索、公告的列表行同步换成同一张卡片，视觉一致。
+4. 加载异常不再冒到主线程，出错只显示错误块。
+
 【v1.5.0 / v17】
 1. 新增标签屏蔽：分类、搜索、排行的每个条目显示前三枚标签，点一下确认即可屏蔽。
 2. 屏蔽后当前列表立即摘掉命中项，顶部提示条可一键撤销；详情页的标签也能直接屏蔽。
@@ -254,13 +260,13 @@ PicACG-COUI-Source.zip，解压后用 Android Studio 打开 coui/ 目录。
   AGP 9.2.0 / Gradle 9.4.1 / compileSdk 37 / JDK 20
 
 
-十一、GitHub 上传状态（v1.5.0，2026-11-25）
+十一、GitHub 上传状态（v1.5.1，2026-11-25）
 -------------------------------------------
 1. 源码仓库：https://github.com/Firewoodfire/PicACG-COUI
-   main 分支为 v1.5.0 完整源码。
-2. Release：https://github.com/Firewoodfire/PicACG-COUI/releases/tag/v1.5.0
-   资产 PicACG-COUI-v1.5.0.apk，27,954,607 字节。
+   main 分支为 v1.5.1 完整源码。
+2. Release：https://github.com/Firewoodfire/PicACG-COUI/releases/tag/v1.5.1
+   资产 PicACG-COUI-v1.5.1.apk，27,954,607 字节。
 3. 资产 SHA256：
-   b63a846126d1a846fa0e17d0a4328602505f635b4e68be052164b8761355e8e3，与本地 APK 一致。
+   7cceb9eba784c1aa7ab7c5ec38989414f4669518c84a4494c89e0de3a0349941，与本地 APK 一致。
 4. 应用内「设置 → 关于 → 软件版本」读取该仓库最新 Release 的标签与说明。
 5. 发布约定：Release 说明只写简介 + 3~4 条本版要点，详细记录放 CHANGELOG.md。
